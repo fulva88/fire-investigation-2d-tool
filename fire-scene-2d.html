@@ -251,6 +251,21 @@
       <h3>건축 요소</h3>
       <div id="palette-arch"></div>
     </div>
+    <div class="panel-section">
+      <h3>기타 (부지/외부)</h3>
+      <button class="tool-btn" data-tool="road" id="tool-road"><span class="ic">🛣</span>도로 그리기 (R)</button>
+      <div class="row" style="margin-top:2px;">
+        <label>도로 폭</label>
+        <select id="sel-road-width">
+          <option value="3">3 m</option>
+          <option value="4">4 m</option>
+          <option value="6" selected>6 m</option>
+          <option value="8">8 m</option>
+          <option value="10">10 m</option>
+        </select>
+      </div>
+      <div id="palette-misc" style="margin-top:6px;"></div>
+    </div>
 
     <div class="panel-section" id="ext-library-section">
       <h3>확장 라이브러리</h3>
@@ -345,6 +360,7 @@ const Theme = {
       wall:'#2b2f36', wallSelected:'#2563eb', handle:'#2563eb', handleFill:'#ffffff',
       dim:'#7c8798', labelBg:'rgba(255,255,255,0.85)', labelText:'#374151',
       wire:'#1d4ed8', arrowSpread:'#ea580c', arrowPhoto:'#7c3aed',
+      road:'#78716c', roadCenterline:'#fde047',
       scale:'#374151', north:'#374151'
     },
     dark: {
@@ -352,6 +368,7 @@ const Theme = {
       wall:'#d7dbe2', wallSelected:'#60a5fa', handle:'#60a5fa', handleFill:'#161a21',
       dim:'#9aa4b2', labelBg:'rgba(22,26,33,0.85)', labelText:'#e5e7eb',
       wire:'#60a5fa', arrowSpread:'#fb923c', arrowPhoto:'#a78bfa',
+      road:'#57534e', roadCenterline:'#fde047',
       scale:'#d7dbe2', north:'#d7dbe2'
     }
   },
@@ -691,6 +708,27 @@ const SymbolLibrary = (function(){
     {type:'line', x1:0,y1:-0.20,x2:0,y2:-0.30, stroke:'#78350f', lw:1.4}
   ]);
 
+  /* ---- 기타 (부지/외부 요소): 나무, 전신주. 도로는 폭을 가진 선이라
+     심볼이 아닌 별도의 "도로 그리기" 도구로 제공된다 (AppState.roads 참고) ---- */
+  reg('misc_tree','나무','기타','#16a34a',38,function(ctx,s){
+    ctx.save();
+    ctx.fillStyle = 'rgba(34,197,94,0.35)'; ctx.strokeStyle = '#15803d'; ctx.lineWidth = 1.8;
+    ctx.beginPath(); ctx.arc(0,0,s*0.42,0,Math.PI*2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = 'rgba(21,128,61,0.55)';
+    [[-0.14,-0.10,0.14],[0.12,-0.14,0.12],[0.02,0.10,0.16],[-0.16,0.12,0.11],[0.18,0.08,0.10]].forEach(function(c){
+      ctx.beginPath(); ctx.arc(c[0]*s, c[1]*s, c[2]*s, 0, Math.PI*2); ctx.fill();
+    });
+    ctx.fillStyle = '#78350f';
+    ctx.beginPath(); ctx.arc(0,0,s*0.05,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  });
+  regShape('misc_utilitypole','전신주','기타',34,[
+    {type:'line', x1:0,y1:0,x2:0.34,y2:-0.18, stroke:'#78716c', lw:1.2},
+    {type:'line', x1:0,y1:0,x2:-0.34,y2:-0.10, stroke:'#78716c', lw:1.2},
+    {type:'line', x1:0,y1:0,x2:0.10,y2:0.34, stroke:'#78716c', lw:1.2},
+    {type:'circle', cx:0,cy:0,r:0.10, stroke:'#57534e', fill:'#a8a29e', lw:1.6}
+  ]);
+
   /* ---- 가전제품 preset folder (전기/가전 하위, 접기/펼치기) ---- */
   const AP = {subcategory:'가전제품', color:'#334155'};
   regShape('appl_fridge','냉장고','전기/가전',34,[
@@ -816,28 +854,30 @@ const SymbolLibrary = (function(){
    5. STATE
    ===================================================================== */
 const AppState = {
-  walls: [], symbols: [], wires: [], arrows: [],
+  walls: [], symbols: [], wires: [], arrows: [], roads: [],
   meta: { title:'', caseNumber:'', address:'', investigator:'', date:'', scaleLabel:'1:100', note:'' },
   view: { zoom:1, panX:0, panY:0 },
   gridStepM: 0.5,
   currentWallThicknessCm: 15,
-  selected: null, // {type:'wall'|'symbol'|'wire'|'arrow', id}
+  currentRoadWidthM: 6,
+  selected: null, // {type:'wall'|'symbol'|'wire'|'arrow'|'road', id}
   _nextId: 1,
   _seqCounter: 1,
   wireCounter: 0,
+  roadCounter: 0,
   genId(){ return 'o'+(this._nextId++); },
   nextSeq(){ return this._seqCounter++; },
   reset(){
-    this.walls=[]; this.symbols=[]; this.wires=[]; this.arrows=[];
+    this.walls=[]; this.symbols=[]; this.wires=[]; this.arrows=[]; this.roads=[];
     this.meta = { title:'', caseNumber:'', address:'', investigator:'', date:'', scaleLabel:'1:100', note:'' };
-    this._nextId = 1; this._seqCounter = 1; this.wireCounter = 0; this.selected=null;
+    this._nextId = 1; this._seqCounter = 1; this.wireCounter = 0; this.roadCounter = 0; this.selected=null;
   },
   serialize(){
     return {
       version:2, exportedAt: new Date().toISOString(),
       meta: this.meta, gridStepM: this.gridStepM,
-      walls: this.walls, symbols: this.symbols, wires: this.wires, arrows: this.arrows,
-      wireCounter: this.wireCounter, seqCounter: this._seqCounter
+      walls: this.walls, symbols: this.symbols, wires: this.wires, arrows: this.arrows, roads: this.roads,
+      wireCounter: this.wireCounter, roadCounter: this.roadCounter, seqCounter: this._seqCounter
     };
   },
   loadFrom(obj){
@@ -845,11 +885,12 @@ const AppState = {
     this.symbols = obj.symbols || [];
     this.wires = obj.wires || [];
     this.arrows = obj.arrows || [];
+    this.roads = obj.roads || [];
     this.meta = Object.assign({title:'',caseNumber:'',address:'',investigator:'',date:'',scaleLabel:'1:100',note:''}, obj.meta||{});
     this.gridStepM = obj.gridStepM || 0.5;
 
     let maxN = 0;
-    [...this.walls, ...this.symbols, ...this.wires, ...this.arrows].forEach(o=>{
+    [...this.walls, ...this.symbols, ...this.wires, ...this.arrows, ...this.roads].forEach(o=>{
       const m = /^o(\d+)$/.exec(o.id||'');
       if(m) maxN = Math.max(maxN, parseInt(m[1],10));
     });
@@ -879,6 +920,7 @@ const AppState = {
     });
     this._seqCounter = Math.max(obj.seqCounter||1, maxSeq+1);
     this.wireCounter = obj.wireCounter || this.wires.length;
+    this.roadCounter = obj.roadCounter || this.roads.length;
 
     const numberedDefIds = new Set(SymbolLibrary.list().filter(d=>d.numbered).map(d=>d.id));
     numberedDefIds.forEach(defId=> renumberSymbolsOfType(defId));
@@ -893,7 +935,7 @@ const AppState = {
 const History = {
   stack: [], index: -1, limit: 60,
   savedIndex: 0, // History.index value at the moment of the last successful JSON export/load
-  _snap(){ return JSON.stringify({walls:AppState.walls, symbols:AppState.symbols, wires:AppState.wires, arrows:AppState.arrows}); },
+  _snap(){ return JSON.stringify({walls:AppState.walls, symbols:AppState.symbols, wires:AppState.wires, arrows:AppState.arrows, roads:AppState.roads}); },
   reset(){ this.stack=[this._snap()]; this.index=0; this.savedIndex=0; this._updateButtons(); },
   commit(){
     const snap = this._snap();
@@ -906,7 +948,7 @@ const History = {
   },
   _apply(snap){
     const d = JSON.parse(snap);
-    AppState.walls = d.walls; AppState.symbols = d.symbols; AppState.wires = d.wires; AppState.arrows = d.arrows||[];
+    AppState.walls = d.walls; AppState.symbols = d.symbols; AppState.wires = d.wires; AppState.arrows = d.arrows||[]; AppState.roads = d.roads||[];
     AppState.selected = null;
   },
   undo(){
@@ -1021,6 +1063,7 @@ const Renderer = {
     AppState.symbols.forEach(s=>{ pts.push({x:s.x,y:s.y}); });
     AppState.wires.forEach(w=> w.points.forEach(p=>pts.push(p)));
     AppState.arrows.forEach(a=>{ pts.push({x:a.x1,y:a.y1},{x:a.x2,y:a.y2}); });
+    AppState.roads.forEach(r=> r.points.forEach(p=>pts.push(p)));
     if(pts.length===0){ this.centerView(); return; }
     let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
     pts.forEach(p=>{ minX=Math.min(minX,p.x); minY=Math.min(minY,p.y); maxX=Math.max(maxX,p.x); maxY=Math.max(maxY,p.y); });
@@ -1039,6 +1082,7 @@ const Renderer = {
     ctx.clearRect(0,0,this.cssW,this.cssH);
     ctx.fillStyle = P.canvasBg; ctx.fillRect(0,0,this.cssW,this.cssH);
     if(document.getElementById('chk-show-grid').checked) this.drawGrid(ctx);
+    this.drawRoads(ctx);
     this.drawWires(ctx);
     this.drawWalls(ctx, document.getElementById('chk-show-dims').checked);
     this.drawArrows(ctx);
@@ -1104,6 +1148,44 @@ const Renderer = {
         ctx.fillRect(-tw/2-3, -thickPx/2-16, tw+6, 14);
         ctx.fillStyle = P.dim;
         ctx.fillText(label, 0, -thickPx/2-5);
+        ctx.restore();
+      }
+    });
+  },
+
+  drawRoads(ctx){
+    const P = Theme.colors();
+    AppState.roads.forEach(r=>{
+      const isSel = AppState.selected && AppState.selected.type==='road' && AppState.selected.id===r.id;
+      const widthPx = (r.widthM||AppState.currentRoadWidthM)*CONFIG.PX_PER_M*AppState.view.zoom;
+      ctx.save();
+      ctx.lineCap='round'; ctx.lineJoin='round';
+      ctx.strokeStyle = isSel ? P.wallSelected : P.road;
+      ctx.lineWidth = Math.max(2, widthPx);
+      ctx.beginPath();
+      r.points.forEach((p,i)=>{ const sp=this.worldToScreen(p); if(i===0) ctx.moveTo(sp.x,sp.y); else ctx.lineTo(sp.x,sp.y); });
+      ctx.stroke();
+      ctx.restore();
+
+      if(widthPx > 6){
+        ctx.save();
+        ctx.strokeStyle = P.roadCenterline; ctx.lineWidth = Math.max(1, widthPx*0.04);
+        ctx.setLineDash([Math.max(4,widthPx*0.35), Math.max(3,widthPx*0.25)]);
+        ctx.beginPath();
+        r.points.forEach((p,i)=>{ const sp=this.worldToScreen(p); if(i===0) ctx.moveTo(sp.x,sp.y); else ctx.lineTo(sp.x,sp.y); });
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      if(r.label && r.points.length){
+        const mid = r.points[Math.floor(r.points.length/2)];
+        const sp = this.worldToScreen(mid);
+        ctx.save(); ctx.font='10.5px sans-serif'; ctx.textAlign='center';
+        const tw = ctx.measureText(r.label).width;
+        ctx.fillStyle = P.labelBg;
+        ctx.fillRect(sp.x-tw/2-3, sp.y-widthPx/2-20, tw+6, 13);
+        ctx.fillStyle = P.labelText;
+        ctx.fillText(r.label, sp.x, sp.y-widthPx/2-10);
         ctx.restore();
       }
     });
@@ -1284,6 +1366,16 @@ const Renderer = {
       ctx.beginPath(); ctx.moveTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y); ctx.stroke();
       ctx.restore();
     }
+    if(ic.mode==='road-chain' && ic.points.length>0){
+      const last = ic.points[ic.points.length-1];
+      const preview = ic.previewPoint || last;
+      const p1 = this.worldToScreen(last), p2 = this.worldToScreen(preview);
+      const widthPx = AppState.currentRoadWidthM*CONFIG.PX_PER_M*AppState.view.zoom;
+      ctx.save();
+      ctx.strokeStyle = P.road; ctx.globalAlpha=0.55; ctx.lineWidth=Math.max(2,widthPx); ctx.lineCap='round';
+      ctx.beginPath(); ctx.moveTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y); ctx.stroke();
+      ctx.restore();
+    }
   },
 
   drawSelectionHandles(ctx){
@@ -1337,6 +1429,7 @@ const Renderer = {
     AppState.symbols.forEach(s=>{ pts.push({x:s.x,y:s.y}); });
     AppState.wires.forEach(w=> w.points.forEach(p=>pts.push(p)));
     AppState.arrows.forEach(a=>{ pts.push({x:a.x1,y:a.y1},{x:a.x2,y:a.y2}); });
+    AppState.roads.forEach(r=> r.points.forEach(p=>pts.push(p)));
     if(pts.length===0) return {minX:-300,minY:-300,maxX:300,maxY:300};
     let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
     pts.forEach(p=>{ minX=Math.min(minX,p.x); minY=Math.min(minY,p.y); maxX=Math.max(maxX,p.x); maxY=Math.max(maxY,p.y); });
@@ -1354,6 +1447,7 @@ const Renderer = {
     AppState.symbols.forEach(sym=>{ if(SymbolLibrary.get(sym.defId)) usedDefs.add(sym.defId); });
     const usedArrowKinds = new Set(AppState.arrows.map(a=>a.kind));
     const hasWires = AppState.wires.length>0;
+    const hasRoads = AppState.roads.length>0;
 
     const legendEntries = [];
     usedDefs.forEach(defId=>{
@@ -1364,6 +1458,12 @@ const Renderer = {
     if(usedArrowKinds.has('photo')) legendEntries.push({ label:'촬영방향', draw:(ctx)=>{ this._strokeArrow(ctx,{x:-14,y:0},{x:14,y:0}, P.arrowPhoto, true, 8); } });
     if(hasWires) legendEntries.push({ label:'배선 경로', draw:(ctx)=>{
       ctx.strokeStyle=P.wire; ctx.lineWidth=3; ctx.setLineDash([6,4]);
+      ctx.beginPath(); ctx.moveTo(-14,0); ctx.lineTo(14,0); ctx.stroke(); ctx.setLineDash([]);
+    } });
+    if(hasRoads) legendEntries.push({ label:'도로', draw:(ctx)=>{
+      ctx.strokeStyle=P.road; ctx.lineWidth=8; ctx.lineCap='round';
+      ctx.beginPath(); ctx.moveTo(-14,0); ctx.lineTo(14,0); ctx.stroke();
+      ctx.strokeStyle=P.roadCenterline; ctx.lineWidth=1; ctx.setLineDash([4,3]);
       ctx.beginPath(); ctx.moveTo(-14,0); ctx.lineTo(14,0); ctx.stroke(); ctx.setLineDash([]);
     } });
 
@@ -1384,6 +1484,36 @@ const Renderer = {
     ctx.strokeStyle = P.grid; ctx.lineWidth=1;
     for(let x=0;x<contentW;x+=step){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,contentH); ctx.stroke(); }
     for(let y=0;y<contentH;y+=step){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(contentW,y); ctx.stroke(); }
+
+    // roads (drawn as a background/site layer, beneath the building itself)
+    AppState.roads.forEach(r=>{
+      const widthPx = (r.widthM||AppState.currentRoadWidthM)*CONFIG.PX_PER_M*zoom;
+      ctx.save();
+      ctx.lineCap='round'; ctx.lineJoin='round';
+      ctx.strokeStyle=P.road; ctx.lineWidth=Math.max(2,widthPx);
+      ctx.beginPath();
+      r.points.forEach((p,i)=>{ const sp=w2s(p); if(i===0) ctx.moveTo(sp.x,sp.y); else ctx.lineTo(sp.x,sp.y); });
+      ctx.stroke();
+      ctx.restore();
+      if(widthPx>6){
+        ctx.save();
+        ctx.strokeStyle=P.roadCenterline; ctx.lineWidth=Math.max(1,widthPx*0.04);
+        ctx.setLineDash([Math.max(4,widthPx*0.35), Math.max(3,widthPx*0.25)]);
+        ctx.beginPath();
+        r.points.forEach((p,i)=>{ const sp=w2s(p); if(i===0) ctx.moveTo(sp.x,sp.y); else ctx.lineTo(sp.x,sp.y); });
+        ctx.stroke();
+        ctx.restore();
+      }
+      if(r.label && r.points.length){
+        const mid = r.points[Math.floor(r.points.length/2)];
+        const sp = w2s(mid);
+        ctx.save(); ctx.font='16px sans-serif'; ctx.textAlign='center';
+        const tw=ctx.measureText(r.label).width;
+        ctx.fillStyle='rgba(255,255,255,0.85)'; ctx.fillRect(sp.x-tw/2-4,sp.y-widthPx/2-26,tw+8,20);
+        ctx.fillStyle=P.labelText; ctx.fillText(r.label, sp.x, sp.y-widthPx/2-12);
+        ctx.restore();
+      }
+    });
 
     // wires
     AppState.wires.forEach(w=>{
@@ -1568,6 +1698,7 @@ const ToolManager = {
       select:'default',
       wall: cursorDataUri('cross', color),
       wire: cursorDataUri('cross', color),
+      road: cursorDataUri('cross', color),
       arrow: cursorDataUri('cross', color),
       'place-symbol': cursorDataUri('copy', color)
     };
@@ -1579,6 +1710,7 @@ const ToolManager = {
     let text = '';
     if(this.current==='wall') text = '클릭하여 벽을 그리세요 (연속 클릭으로 이어그리기, Esc/Enter로 종료)';
     else if(this.current==='wire') text = '클릭하여 배선 경로를 그리세요 (완료 시 자동으로 이름이 붙습니다, Esc/Enter/더블클릭으로 종료)';
+    else if(this.current==='road') text = '클릭하여 도로를 그리세요 (Esc/Enter/더블클릭으로 종료)';
     else if(this.current==='arrow'){
       const label = this.pendingArrowKind==='spread' ? '연소확대방향' : '촬영방향';
       text = label+' 화살표 — 드래그하여 방향과 길이를 지정하세요';
@@ -1635,6 +1767,18 @@ function findWireAt(worldPt){
     for(let i=0;i<w.points.length-1;i++){
       const d = Geo.distToSegment(worldPt, w.points[i], w.points[i+1]);
       if(d<threshold && d<bestD){ bestD=d; best=w; }
+    }
+  });
+  return best;
+}
+function findRoadAt(worldPt){
+  let best=null,bestD=Infinity;
+  AppState.roads.forEach(r=>{
+    const half = (r.widthM||AppState.currentRoadWidthM)/2*CONFIG.PX_PER_M;
+    const threshold = half + 8/AppState.view.zoom;
+    for(let i=0;i<r.points.length-1;i++){
+      const d = Geo.distToSegment(worldPt, r.points[i], r.points[i+1]);
+      if(d<threshold && d<bestD){ bestD=d; best=r; }
     }
   });
   return best;
@@ -1752,6 +1896,18 @@ function onPointerDown(e){
     return;
   }
 
+  if(tool==='road'){
+    let pt = applyGridSnap(world);
+    const ic = ToolManager.interaction;
+    if(ic.mode!=='road-chain'){
+      ToolManager.interaction = { mode:'road-chain', points:[pt], previewPoint:pt };
+    } else {
+      ic.points.push(pt);
+    }
+    Renderer.render();
+    return;
+  }
+
   if(tool==='arrow'){
     const pt = applyGridSnap(world);
     ToolManager.dragState = { type:'draw-arrow', kind: ToolManager.pendingArrowKind, x1:pt.x, y1:pt.y, x2:pt.x, y2:pt.y };
@@ -1803,6 +1959,13 @@ function onPointerDown(e){
       UI.renderPropertyPanel(); Renderer.render();
       return;
     }
+    const road = findRoadAt(world);
+    if(road){
+      AppState.selected = { type:'road', id:road.id };
+      ToolManager.dragState = { type:'move-road', id:road.id, startWorld:world, orig:road.points.map(p=>({...p})) };
+      UI.renderPropertyPanel(); Renderer.render();
+      return;
+    }
     AppState.selected = null;
     UI.renderPropertyPanel(); Renderer.render();
   }
@@ -1831,6 +1994,11 @@ function onPointerMove(e){
     return;
   }
   if(ic.mode==='wire-chain'){
+    ic.previewPoint = applyGridSnap(world);
+    Renderer.render();
+    return;
+  }
+  if(ic.mode==='road-chain'){
     ic.previewPoint = applyGridSnap(world);
     Renderer.render();
     return;
@@ -1873,6 +2041,12 @@ function onPointerMove(e){
     const wire = AppState.wires.find(w=>w.id===ds.id); if(!wire) return;
     const dx = world.x-ds.startWorld.x, dy = world.y-ds.startWorld.y;
     wire.points = ds.orig.map(p=>({x:p.x+dx,y:p.y+dy}));
+    Renderer.render(); return;
+  }
+  if(ds.type==='move-road'){
+    const road = AppState.roads.find(r=>r.id===ds.id); if(!road) return;
+    const dx = world.x-ds.startWorld.x, dy = world.y-ds.startWorld.y;
+    road.points = ds.orig.map(p=>({x:p.x+dx,y:p.y+dy}));
     Renderer.render(); return;
   }
   if(ds.type==='move-arrow'){
@@ -1928,6 +2102,11 @@ function finishChain(){
     AppState.wires.push({ id:AppState.genId(), points: ic.points.map(p=>({...p})), label:'배선 경로 '+AppState.wireCounter });
     History.commit();
   }
+  if(ic.mode==='road-chain' && ic.points.length>=2){
+    AppState.roadCounter++;
+    AppState.roads.push({ id:AppState.genId(), points: ic.points.map(p=>({...p})), widthM: AppState.currentRoadWidthM, label:'도로 '+AppState.roadCounter });
+    History.commit();
+  }
   ToolManager.interaction = { mode:'idle', points:[], previewPoint:null };
   Renderer.render();
 }
@@ -1935,7 +2114,7 @@ function finishChain(){
 function onDblClick(e){
   const ic = ToolManager.interaction;
   if(ic.mode==='wall-chain'){ ToolManager.interaction={mode:'idle',points:[],previewPoint:null}; Renderer.render(); }
-  else if(ic.mode==='wire-chain'){ finishChain(); }
+  else if(ic.mode==='wire-chain' || ic.mode==='road-chain'){ finishChain(); }
 }
 
 function onWheel(e){
@@ -1961,7 +2140,7 @@ function onKeyDown(e){
   if(e.key==='Enter'){
     const ic = ToolManager.interaction;
     if(ic.mode==='wall-chain'){ ToolManager.interaction={mode:'idle',points:[],previewPoint:null}; Renderer.render(); }
-    else if(ic.mode==='wire-chain'){ finishChain(); }
+    else if(ic.mode==='wire-chain' || ic.mode==='road-chain'){ finishChain(); }
     return;
   }
   if((e.key==='Delete' || e.key==='Backspace') && AppState.selected){
@@ -1975,6 +2154,7 @@ function onKeyDown(e){
   if(e.key==='v' || e.key==='V') ToolManager.setTool('select');
   if(e.key==='w' || e.key==='W') ToolManager.setTool('wall');
   if(e.key==='c' || e.key==='C') ToolManager.setTool('wire');
+  if(e.key==='r' || e.key==='R') ToolManager.setTool('road');
   if(e.key==='a' || e.key==='A') ToolManager.startArrowTool('spread');
   if(e.key==='p' || e.key==='P') ToolManager.startArrowTool('photo');
 }
@@ -1991,6 +2171,7 @@ function deleteSelected(){
   }
   if(sel.type==='wire') AppState.wires = AppState.wires.filter(w=>w.id!==sel.id);
   if(sel.type==='arrow') AppState.arrows = AppState.arrows.filter(a=>a.id!==sel.id);
+  if(sel.type==='road') AppState.roads = AppState.roads.filter(r=>r.id!==sel.id);
   AppState.selected = null;
   if(renumberDefId) renumberSymbolsOfType(renumberDefId);
   History.commit(); UI.renderPropertyPanel(); Renderer.render();
@@ -2204,7 +2385,7 @@ const UI = {
   },
 
   buildPalette(){
-    const CONTAINER_MAP = { '화재조사':'palette-fire', '소방시설':'palette-fs', '전기/가전':'palette-elec', '가구':'palette-furn', '건축 요소':'palette-arch' };
+    const CONTAINER_MAP = { '화재조사':'palette-fire', '소방시설':'palette-fs', '전기/가전':'palette-elec', '가구':'palette-furn', '건축 요소':'palette-arch', '기타':'palette-misc' };
     Object.values(CONTAINER_MAP).forEach(id=>{ const el=document.getElementById(id); if(el) el.innerHTML=''; });
     document.querySelectorAll('.palette-dynamic-section').forEach(el=>el.remove());
 
@@ -2274,6 +2455,7 @@ const UI = {
 
     document.getElementById('sel-grid-step').addEventListener('change', e=>{ AppState.gridStepM = parseFloat(e.target.value); Renderer.render(); });
     document.getElementById('sel-wall-thickness').addEventListener('change', e=>{ AppState.currentWallThicknessCm = parseFloat(e.target.value); });
+    document.getElementById('sel-road-width').addEventListener('change', e=>{ AppState.currentRoadWidthM = parseFloat(e.target.value); });
     document.getElementById('chk-show-grid').addEventListener('change', ()=> Renderer.render());
     document.getElementById('chk-show-dims').addEventListener('change', ()=> Renderer.render());
     document.getElementById('chk-grid-snap').addEventListener('change', ()=>{});
@@ -2467,6 +2649,20 @@ const UI = {
         '<div class="prop-hint">캔버스에서 양 끝점(사각 핸들)을 드래그하면 각도와 길이를 조절할 수 있습니다.</div>'+
         '<button class="btn-danger" id="pa-del">이 화살표 삭제</button>';
       document.getElementById('pa-del').addEventListener('click', deleteSelected);
+    }
+    else if(sel.type==='road'){
+      const r = AppState.roads.find(x=>x.id===sel.id); if(!r){ AppState.selected=null; return this.renderPropertyPanel(); }
+      panel.innerHTML =
+        '<div class="row"><label>종류</label><span>도로</span></div>'+
+        '<div class="row"><label>라벨</label><input type="text" id="proad-label" value="'+escapeHtml(r.label||'')+'" placeholder="도로"></div>'+
+        '<div class="row"><label>폭(m)</label><input type="number" id="proad-width" value="'+(r.widthM||AppState.currentRoadWidthM)+'" min="1" max="30" step="0.5"></div>'+
+        '<div class="row"><label>점 개수</label><span>'+r.points.length+'</span></div>'+
+        '<button class="btn-danger" id="proad-del">이 도로 삭제</button>';
+      document.getElementById('proad-label').addEventListener('input', e=>{ r.label=e.target.value; Renderer.render(); });
+      document.getElementById('proad-label').addEventListener('change', ()=> History.commit());
+      document.getElementById('proad-width').addEventListener('input', e=>{ r.widthM = parseFloat(e.target.value)||AppState.currentRoadWidthM; Renderer.render(); });
+      document.getElementById('proad-width').addEventListener('change', ()=> History.commit());
+      document.getElementById('proad-del').addEventListener('click', deleteSelected);
     }
   }
 };
