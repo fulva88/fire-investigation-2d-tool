@@ -368,7 +368,7 @@
 /* =====================================================================
    1. CONFIG
    ===================================================================== */
-const APP_VERSION = '1.1';
+const APP_VERSION = '1.11';
 
 const CONFIG = {
   PX_PER_M: 60,
@@ -604,6 +604,34 @@ const SymbolLibrary = (function(){
     ctx.beginPath(); ctx.arc(0,0.02*s,s*0.08,0,Math.PI*2); ctx.stroke();
     ctx.restore();
   }, {numbered:true, shortName:'촬영'});
+
+  // 소사자 (화재 사망자 위치 표식 — 차분한 무채색의 단순 인체 윤곽 픽토그램으로,
+  // 자극적이지 않게 표준 현장도면 관례에 맞춰 표현. 여러 명일 경우를 대비해 번호가 자동으로 붙는다)
+  reg('victim','소사자','화재조사','#44403c',40,function(ctx,s){
+    ctx.save();
+    ctx.strokeStyle = '#292524'; ctx.lineWidth = 2; ctx.fillStyle = 'rgba(120,113,108,0.28)';
+    // 머리
+    ctx.beginPath(); ctx.arc(-s*0.36, 0, s*0.11, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+    // 몸통
+    ctx.beginPath();
+    ctx.moveTo(-s*0.26, -s*0.09);
+    ctx.quadraticCurveTo(s*0.05, -s*0.14, s*0.20, -s*0.06);
+    ctx.quadraticCurveTo(s*0.30, 0, s*0.20, s*0.06);
+    ctx.quadraticCurveTo(s*0.05, s*0.14, -s*0.26, s*0.09);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    // 팔
+    ctx.beginPath();
+    ctx.moveTo(-s*0.10, -s*0.10); ctx.lineTo(-s*0.02, -s*0.30);
+    ctx.moveTo(-s*0.02, -s*0.06); ctx.lineTo(s*0.10, -s*0.24);
+    ctx.stroke();
+    // 다리
+    ctx.beginPath();
+    ctx.moveTo(s*0.18, -s*0.03); ctx.lineTo(s*0.40, -s*0.16);
+    ctx.moveTo(s*0.18, s*0.03); ctx.lineTo(s*0.40, s*0.16);
+    ctx.stroke();
+    ctx.restore();
+  }, {numbered:true, shortName:'소사자'});
 
   // 기타 가전제품 (generic catch-all, kept alongside the 가전제품 preset folder below)
   reg('appliance','기타 가전제품','전기/가전','#f59e0b',36,function(ctx,s){
@@ -2729,6 +2757,9 @@ const PatchNotes = {
     { version:'1.1', date:'2026-08-16', items:[
       '업데이트 시 무엇이 바뀌었는지 볼 수 있는 패치노트 팝업 추가',
       '"오늘 하루 보지 않기" 체크박스로 팝업이 불필요하게 반복되지 않도록 개선'
+    ]},
+    { version:'1.11', date:'2026-08-16', items:[
+      '화재조사 심볼에 "소사자" 마커 추가 (여러 명일 경우 자동으로 번호가 매겨집니다)'
     ]}
   ],
 
