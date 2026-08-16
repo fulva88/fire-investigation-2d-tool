@@ -149,6 +149,24 @@
   #modal-actions button{padding:6px 14px; border-radius:5px; border:1px solid var(--border); background:var(--panel); color:var(--text);}
   #modal-actions button.primary{background:var(--accent); color:#fff; border-color:var(--accent);}
 
+  /* ===== Patch notes popup ===== */
+  #patchnotes-overlay{
+    position:fixed; inset:0; background:rgba(15,18,25,.5); display:none; align-items:center; justify-content:center; z-index:200;
+  }
+  #patchnotes-box{background:var(--panel); color:var(--text); border-radius:12px; padding:20px 22px; width:380px; max-height:80vh; overflow-y:auto; box-shadow:0 14px 40px rgba(0,0,0,.3);}
+  #patchnotes-box h3{margin:0 0 2px; font-size:15px;}
+  #patchnotes-subtitle{font-size:11.5px; color:var(--text-dim); margin-bottom:10px;}
+  #patchnotes-list{margin:8px 0; padding-left:20px; font-size:13px; line-height:1.65;}
+  #patchnotes-list li{margin-bottom:4px;}
+  #patchnotes-history-toggle{font-size:11.5px; color:var(--accent); cursor:pointer; margin:10px 0 0; user-select:none; display:inline-block;}
+  #patchnotes-history{border-top:1px solid var(--border); padding-top:10px; margin-top:8px;}
+  #patchnotes-history .pn-entry{margin-bottom:12px;}
+  #patchnotes-history .pn-entry-title{font-size:12px; font-weight:700; color:var(--text-dim); margin-bottom:3px;}
+  #patchnotes-history .pn-entry ul{margin:0; padding-left:18px; font-size:12px; color:var(--text-dim); line-height:1.55;}
+  #patchnotes-footer{display:flex; align-items:center; justify-content:space-between; margin-top:16px; padding-top:12px; border-top:1px solid var(--border);}
+  #patchnotes-hide-row{display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-dim); cursor:pointer;}
+  #patchnotes-close{padding:7px 18px; border-radius:6px; border:1px solid var(--accent); background:var(--accent); color:#fff; font-weight:600;}
+
   /* ===== Print ===== */
   #print-area{display:none;}
   @media print{
@@ -162,7 +180,7 @@
 <body>
 
 <div id="topbar">
-  <div class="brand">🔥 화재조사 2D 현장복원도</div>
+  <div class="brand">🔥 화재조사 2D 현장복원도 <span id="app-version" style="font-size:10px; font-weight:400; opacity:.55; margin-left:2px;"></span></div>
   <div class="grp">
     <button id="btn-new" title="새 도면">새 도면</button>
     <button id="btn-open" title="JSON 불러오기">열기</button>
@@ -193,6 +211,8 @@
       <h3>도구</h3>
       <button class="tool-btn" data-tool="select"><span class="ic">↖</span>선택 / 이동 (V)</button>
       <button class="tool-btn" data-tool="wall"><span class="ic">▭</span>벽 그리기 (W)</button>
+      <button class="tool-btn" data-tool="curve"><span class="ic">◠</span>곡면 벽 (U)</button>
+      <button class="tool-btn" data-tool="machine"><span class="ic">▦</span>기계설비 사각형 (M)</button>
       <button class="tool-btn" data-tool="wire"><span class="ic">⌁</span>배선 경로 (C)</button>
       <button class="tool-btn" data-arrow="spread" id="tool-arrow-spread"><span class="ic">↗</span>연소확대방향 (A)</button>
       <button class="tool-btn" data-arrow="photo" id="tool-arrow-photo"><span class="ic">📷</span>촬영방향 (P)</button>
@@ -328,12 +348,28 @@
   </div>
 </div>
 
+<div id="patchnotes-overlay">
+  <div id="patchnotes-box">
+    <h3 id="patchnotes-title">업데이트 안내</h3>
+    <div id="patchnotes-subtitle"></div>
+    <ul id="patchnotes-list"></ul>
+    <div id="patchnotes-history-toggle">이전 업데이트 내역 보기 ▾</div>
+    <div id="patchnotes-history" style="display:none;"></div>
+    <div id="patchnotes-footer">
+      <label id="patchnotes-hide-row"><input type="checkbox" id="patchnotes-hide-today"> 오늘 하루 보지 않기</label>
+      <button id="patchnotes-close">확인</button>
+    </div>
+  </div>
+</div>
+
 <script>
 'use strict';
 
 /* =====================================================================
    1. CONFIG
    ===================================================================== */
+const APP_VERSION = '1.1';
+
 const CONFIG = {
   PX_PER_M: 60,
   minZoom: 0.15, maxZoom: 6
@@ -636,21 +672,33 @@ const SymbolLibrary = (function(){
     {type:'line', x1:0.28,y1:-0.28,x2:-0.28,y2:0.28, stroke:'#374151', lw:1.2}
   ]);
 
-  // 벽난로 (화재조사에서 발화지점으로 자주 지목되는 지점)
-  reg('arch_fireplace','벽난로','건축 요소','#7c2d12',40,function(ctx,s){
+  // 아궁이 (전통 화덕/부뚜막 — 농촌·전통가옥 화재조사에서 발화지점으로 자주 지목되는 지점)
+  reg('arch_fireplace','아궁이','건축 요소','#78350f',40,function(ctx,s){
     ctx.save();
-    ctx.strokeStyle = '#7c2d12'; ctx.lineWidth = 2; ctx.fillStyle = '#fee2e2';
+    // 흙벽/부뚜막 몸체
+    ctx.strokeStyle = '#78350f'; ctx.lineWidth = 2; ctx.fillStyle = '#e7d5b8';
     ctx.beginPath();
-    ctx.moveTo(-s*0.32,-s*0.34); ctx.lineTo(s*0.32,-s*0.34); ctx.lineTo(s*0.26,s*0.30); ctx.lineTo(-s*0.26,s*0.30);
-    ctx.closePath(); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = '#44403c';
-    ctx.fillRect(-s*0.16,-s*0.22,s*0.32,s*0.34);
+    ctx.rect(-s*0.34,-s*0.10,s*0.68,s*0.40);
+    ctx.fill(); ctx.stroke();
+    // 아궁이 아치형 불 넣는 입구
+    ctx.fillStyle = '#292524';
+    ctx.beginPath();
+    ctx.moveTo(-s*0.16, s*0.30);
+    ctx.lineTo(-s*0.16, s*0.02);
+    ctx.arc(0, s*0.02, s*0.16, Math.PI, 0, false);
+    ctx.lineTo(s*0.16, s*0.30);
+    ctx.closePath();
+    ctx.fill();
+    // 불꽃
     ctx.fillStyle = '#f97316';
     ctx.beginPath();
-    ctx.moveTo(0, s*0.06);
-    ctx.bezierCurveTo(s*0.08,-s*0.02, s*0.04,-s*0.12, 0,-s*0.18);
-    ctx.bezierCurveTo(-s*0.04,-s*0.12, -s*0.08,-s*0.02, 0, s*0.06);
+    ctx.moveTo(0, s*0.26);
+    ctx.bezierCurveTo(s*0.06,s*0.18, s*0.03,s*0.10, 0,s*0.06);
+    ctx.bezierCurveTo(-s*0.03,s*0.10, -s*0.06,s*0.18, 0, s*0.26);
     ctx.closePath(); ctx.fill();
+    // 가마솥 (부뚜막 위)
+    ctx.fillStyle = '#44403c'; ctx.strokeStyle = '#1c1917'; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.ellipse(0, -s*0.14, s*0.24, s*0.14, 0, 0, Math.PI*2); ctx.fill(); ctx.stroke();
     ctx.restore();
   });
 
@@ -854,30 +902,31 @@ const SymbolLibrary = (function(){
    5. STATE
    ===================================================================== */
 const AppState = {
-  walls: [], symbols: [], wires: [], arrows: [], roads: [],
+  walls: [], symbols: [], wires: [], arrows: [], roads: [], machines: [],
   meta: { title:'', caseNumber:'', address:'', investigator:'', date:'', scaleLabel:'1:100', note:'' },
   view: { zoom:1, panX:0, panY:0 },
   gridStepM: 0.5,
   currentWallThicknessCm: 15,
   currentRoadWidthM: 6,
-  selected: null, // {type:'wall'|'symbol'|'wire'|'arrow'|'road', id}
+  selected: null, // {type:'wall'|'symbol'|'wire'|'arrow'|'road'|'machine', id}
   _nextId: 1,
   _seqCounter: 1,
   wireCounter: 0,
   roadCounter: 0,
+  machineCounter: 0,
   genId(){ return 'o'+(this._nextId++); },
   nextSeq(){ return this._seqCounter++; },
   reset(){
-    this.walls=[]; this.symbols=[]; this.wires=[]; this.arrows=[]; this.roads=[];
+    this.walls=[]; this.symbols=[]; this.wires=[]; this.arrows=[]; this.roads=[]; this.machines=[];
     this.meta = { title:'', caseNumber:'', address:'', investigator:'', date:'', scaleLabel:'1:100', note:'' };
-    this._nextId = 1; this._seqCounter = 1; this.wireCounter = 0; this.roadCounter = 0; this.selected=null;
+    this._nextId = 1; this._seqCounter = 1; this.wireCounter = 0; this.roadCounter = 0; this.machineCounter = 0; this.selected=null;
   },
   serialize(){
     return {
-      version:2, exportedAt: new Date().toISOString(),
+      version:2, exportedAt: new Date().toISOString(), appVersion: APP_VERSION,
       meta: this.meta, gridStepM: this.gridStepM,
-      walls: this.walls, symbols: this.symbols, wires: this.wires, arrows: this.arrows, roads: this.roads,
-      wireCounter: this.wireCounter, roadCounter: this.roadCounter, seqCounter: this._seqCounter
+      walls: this.walls, symbols: this.symbols, wires: this.wires, arrows: this.arrows, roads: this.roads, machines: this.machines,
+      wireCounter: this.wireCounter, roadCounter: this.roadCounter, machineCounter: this.machineCounter, seqCounter: this._seqCounter
     };
   },
   loadFrom(obj){
@@ -886,11 +935,12 @@ const AppState = {
     this.wires = obj.wires || [];
     this.arrows = obj.arrows || [];
     this.roads = obj.roads || [];
+    this.machines = obj.machines || [];
     this.meta = Object.assign({title:'',caseNumber:'',address:'',investigator:'',date:'',scaleLabel:'1:100',note:''}, obj.meta||{});
     this.gridStepM = obj.gridStepM || 0.5;
 
     let maxN = 0;
-    [...this.walls, ...this.symbols, ...this.wires, ...this.arrows, ...this.roads].forEach(o=>{
+    [...this.walls, ...this.symbols, ...this.wires, ...this.arrows, ...this.roads, ...this.machines].forEach(o=>{
       const m = /^o(\d+)$/.exec(o.id||'');
       if(m) maxN = Math.max(maxN, parseInt(m[1],10));
     });
@@ -921,6 +971,7 @@ const AppState = {
     this._seqCounter = Math.max(obj.seqCounter||1, maxSeq+1);
     this.wireCounter = obj.wireCounter || this.wires.length;
     this.roadCounter = obj.roadCounter || this.roads.length;
+    this.machineCounter = obj.machineCounter || this.machines.length;
 
     const numberedDefIds = new Set(SymbolLibrary.list().filter(d=>d.numbered).map(d=>d.id));
     numberedDefIds.forEach(defId=> renumberSymbolsOfType(defId));
@@ -935,7 +986,7 @@ const AppState = {
 const History = {
   stack: [], index: -1, limit: 60,
   savedIndex: 0, // History.index value at the moment of the last successful JSON export/load
-  _snap(){ return JSON.stringify({walls:AppState.walls, symbols:AppState.symbols, wires:AppState.wires, arrows:AppState.arrows, roads:AppState.roads}); },
+  _snap(){ return JSON.stringify({walls:AppState.walls, symbols:AppState.symbols, wires:AppState.wires, arrows:AppState.arrows, roads:AppState.roads, machines:AppState.machines}); },
   reset(){ this.stack=[this._snap()]; this.index=0; this.savedIndex=0; this._updateButtons(); },
   commit(){
     const snap = this._snap();
@@ -948,7 +999,7 @@ const History = {
   },
   _apply(snap){
     const d = JSON.parse(snap);
-    AppState.walls = d.walls; AppState.symbols = d.symbols; AppState.wires = d.wires; AppState.arrows = d.arrows||[]; AppState.roads = d.roads||[];
+    AppState.walls = d.walls; AppState.symbols = d.symbols; AppState.wires = d.wires; AppState.arrows = d.arrows||[]; AppState.roads = d.roads||[]; AppState.machines = d.machines||[];
     AppState.selected = null;
   },
   undo(){
@@ -996,6 +1047,46 @@ const Geo = {
     t = Math.max(0, Math.min(1, t));
     const proj = { x: a.x + t*(b.x-a.x), y: a.y + t*(b.y-a.y) };
     return this.dist(p, proj);
+  },
+  /* ---- 3점 아크(곡면 벽) 지원용 원호 계산 ---- */
+  circumcircle(p1,p2,p3){
+    const ax=p1.x, ay=p1.y, bx=p2.x, by=p2.y, cx=p3.x, cy=p3.y;
+    const d = 2*(ax*(by-cy)+bx*(cy-ay)+cx*(ay-by));
+    if(Math.abs(d) < 1e-6) return null; // 세 점이 일직선상에 있어 원을 정의할 수 없음
+    const ux = ((ax*ax+ay*ay)*(by-cy) + (bx*bx+by*by)*(cy-ay) + (cx*cx+cy*cy)*(ay-by)) / d;
+    const uy = ((ax*ax+ay*ay)*(cx-bx) + (bx*bx+by*by)*(ax-cx) + (cx*cx+cy*cy)*(bx-ax)) / d;
+    return { cx:ux, cy:uy, r:Math.hypot(ax-ux, ay-uy) };
+  },
+  normAngle(a){ const TWO_PI=Math.PI*2; a = a % TWO_PI; if(a<0) a+=TWO_PI; return a; },
+  // 각 mid가 start→end 방향(anticlockwise 지정)으로 도는 호 안에 포함되는지 여부
+  angleInSweep(mid, start, end, anticlockwise){
+    const m = this.normAngle(mid);
+    let s = this.normAngle(start), e = this.normAngle(end);
+    if(anticlockwise){ const t=s; s=e; e=t; }
+    if(s<=e) return m>=s && m<=e;
+    return m>=s || m<=e;
+  },
+  arcSweep(curve){
+    const s = this.normAngle(curve.startAngle), e = this.normAngle(curve.endAngle);
+    let sweep = curve.anticlockwise ? (s-e) : (e-s);
+    if(sweep<0) sweep += Math.PI*2;
+    return sweep;
+  },
+  arcMidpoint(curve){
+    const sweep = this.arcSweep(curve);
+    const mid = curve.anticlockwise ? curve.startAngle - sweep/2 : curve.startAngle + sweep/2;
+    return { x: curve.cx+Math.cos(mid)*curve.r, y: curve.cy+Math.sin(mid)*curve.r, angle: mid };
+  },
+  distToArc(p, curve){
+    const dx = p.x-curve.cx, dy = p.y-curve.cy;
+    const distToCenter = Math.hypot(dx,dy);
+    const ang = Math.atan2(dy,dx);
+    if(this.angleInSweep(ang, curve.startAngle, curve.endAngle, curve.anticlockwise)){
+      return Math.abs(distToCenter - curve.r);
+    }
+    const p1 = {x:curve.cx+Math.cos(curve.startAngle)*curve.r, y:curve.cy+Math.sin(curve.startAngle)*curve.r};
+    const p2 = {x:curve.cx+Math.cos(curve.endAngle)*curve.r, y:curve.cy+Math.sin(curve.endAngle)*curve.r};
+    return Math.min(this.dist(p,p1), this.dist(p,p2));
   }
 };
 
@@ -1059,11 +1150,12 @@ const Renderer = {
   },
   fitToContent(){
     const pts = [];
-    AppState.walls.forEach(w=>{ pts.push({x:w.x1,y:w.y1},{x:w.x2,y:w.y2}); });
+    AppState.walls.forEach(w=>{ pts.push({x:w.x1,y:w.y1},{x:w.x2,y:w.y2}); if(w.curve) pts.push(Geo.arcMidpoint(w.curve)); });
     AppState.symbols.forEach(s=>{ pts.push({x:s.x,y:s.y}); });
     AppState.wires.forEach(w=> w.points.forEach(p=>pts.push(p)));
     AppState.arrows.forEach(a=>{ pts.push({x:a.x1,y:a.y1},{x:a.x2,y:a.y2}); });
     AppState.roads.forEach(r=> r.points.forEach(p=>pts.push(p)));
+    AppState.machines.forEach(m=>{ pts.push({x:m.x1,y:m.y1},{x:m.x2,y:m.y2}); });
     if(pts.length===0){ this.centerView(); return; }
     let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
     pts.forEach(p=>{ minX=Math.min(minX,p.x); minY=Math.min(minY,p.y); maxX=Math.max(maxX,p.x); maxY=Math.max(maxY,p.y); });
@@ -1085,10 +1177,12 @@ const Renderer = {
     this.drawRoads(ctx);
     this.drawWires(ctx);
     this.drawWalls(ctx, document.getElementById('chk-show-dims').checked);
+    this.drawMachines(ctx);
     this.drawArrows(ctx);
     this.drawSymbols(ctx);
     this.drawChainPreview(ctx);
     this.drawArrowDraft(ctx);
+    this.drawMachineDraft(ctx);
     this.drawSelectionHandles(ctx);
     this.drawScaleBar(ctx);
     this.drawNorthArrow(ctx);
@@ -1122,33 +1216,57 @@ const Renderer = {
   drawWalls(ctx, showDims){
     const P = Theme.colors();
     AppState.walls.forEach(w=>{
-      const p1 = this.worldToScreen({x:w.x1,y:w.y1});
-      const p2 = this.worldToScreen({x:w.x2,y:w.y2});
       const thickPx = (w.thicknessCm/100)*CONFIG.PX_PER_M*AppState.view.zoom;
       const isSel = AppState.selected && AppState.selected.type==='wall' && AppState.selected.id===w.id;
       ctx.save();
-      ctx.lineCap = 'square'; ctx.lineJoin='miter';
       ctx.strokeStyle = isSel ? P.wallSelected : P.wall;
       ctx.lineWidth = Math.max(1,thickPx);
-      ctx.beginPath(); ctx.moveTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y); ctx.stroke();
+      ctx.beginPath();
+      if(w.curve){
+        ctx.lineCap = 'round'; ctx.lineJoin='round';
+        const c = w.curve;
+        const cs = this.worldToScreen({x:c.cx,y:c.cy});
+        ctx.arc(cs.x, cs.y, c.r*AppState.view.zoom, c.startAngle, c.endAngle, c.anticlockwise);
+      } else {
+        ctx.lineCap = 'square'; ctx.lineJoin='miter';
+        const p1 = this.worldToScreen({x:w.x1,y:w.y1}), p2 = this.worldToScreen({x:w.x2,y:w.y2});
+        ctx.moveTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y);
+      }
+      ctx.stroke();
       ctx.restore();
 
       if(showDims){
-        const lenM = Geo.dist({x:w.x1,y:w.y1},{x:w.x2,y:w.y2}) / CONFIG.PX_PER_M;
-        const mid = { x:(p1.x+p2.x)/2, y:(p1.y+p2.y)/2 };
-        const ang = Math.atan2(p2.y-p1.y, p2.x-p1.x);
-        ctx.save();
-        ctx.translate(mid.x, mid.y);
-        let rot = ang; if(rot > Math.PI/2 || rot < -Math.PI/2) rot += Math.PI;
-        ctx.rotate(rot);
-        ctx.font = '11px sans-serif'; ctx.textAlign='center';
-        const label = lenM.toFixed(2)+'m';
-        const tw = ctx.measureText(label).width;
-        ctx.fillStyle = P.labelBg;
-        ctx.fillRect(-tw/2-3, -thickPx/2-16, tw+6, 14);
-        ctx.fillStyle = P.dim;
-        ctx.fillText(label, 0, -thickPx/2-5);
-        ctx.restore();
+        if(w.curve){
+          const lenM = w.curve.r * Geo.arcSweep(w.curve) / CONFIG.PX_PER_M;
+          const mid = Geo.arcMidpoint(w.curve);
+          const sp = this.worldToScreen(mid);
+          ctx.save();
+          ctx.font = '11px sans-serif'; ctx.textAlign='center';
+          const label = lenM.toFixed(2)+'m (호)';
+          const tw = ctx.measureText(label).width;
+          ctx.fillStyle = P.labelBg;
+          ctx.fillRect(sp.x-tw/2-3, sp.y-thickPx/2-19, tw+6, 14);
+          ctx.fillStyle = P.dim;
+          ctx.fillText(label, sp.x, sp.y-thickPx/2-8);
+          ctx.restore();
+        } else {
+          const p1 = this.worldToScreen({x:w.x1,y:w.y1}), p2 = this.worldToScreen({x:w.x2,y:w.y2});
+          const lenM = Geo.dist({x:w.x1,y:w.y1},{x:w.x2,y:w.y2}) / CONFIG.PX_PER_M;
+          const mid = { x:(p1.x+p2.x)/2, y:(p1.y+p2.y)/2 };
+          const ang = Math.atan2(p2.y-p1.y, p2.x-p1.x);
+          ctx.save();
+          ctx.translate(mid.x, mid.y);
+          let rot = ang; if(rot > Math.PI/2 || rot < -Math.PI/2) rot += Math.PI;
+          ctx.rotate(rot);
+          ctx.font = '11px sans-serif'; ctx.textAlign='center';
+          const label = lenM.toFixed(2)+'m';
+          const tw = ctx.measureText(label).width;
+          ctx.fillStyle = P.labelBg;
+          ctx.fillRect(-tw/2-3, -thickPx/2-16, tw+6, 14);
+          ctx.fillStyle = P.dim;
+          ctx.fillText(label, 0, -thickPx/2-5);
+          ctx.restore();
+        }
       }
     });
   },
@@ -1273,6 +1391,55 @@ const Renderer = {
     ctx.restore();
   },
 
+  drawMachines(ctx){
+    const P = Theme.colors();
+    AppState.machines.forEach(m=>{
+      const isSel = AppState.selected && AppState.selected.type==='machine' && AppState.selected.id===m.id;
+      const a = this.worldToScreen({x:m.x1,y:m.y1}), b = this.worldToScreen({x:m.x2,y:m.y2});
+      const x=Math.min(a.x,b.x), y=Math.min(a.y,b.y), w=Math.abs(b.x-a.x), h=Math.abs(b.y-a.y);
+      ctx.save();
+      ctx.fillStyle = 'rgba(100,116,139,0.14)';
+      ctx.strokeStyle = isSel ? P.wallSelected : '#64748b';
+      ctx.lineWidth = 1.8; ctx.setLineDash([6,4]);
+      ctx.fillRect(x,y,w,h); ctx.strokeRect(x,y,w,h);
+      ctx.setLineDash([]);
+      ctx.restore();
+
+      if(m.label){
+        ctx.save();
+        ctx.font = '11px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+        const cx=x+w/2, cy=y+h/2;
+        const tw = ctx.measureText(m.label).width;
+        ctx.fillStyle = P.labelBg;
+        ctx.fillRect(cx-tw/2-4, cy-9, tw+8, 18);
+        ctx.fillStyle = P.labelText;
+        ctx.fillText(m.label, cx, cy);
+        ctx.restore();
+      }
+
+      if(isSel){
+        [{x:m.x1,y:m.y1},{x:m.x2,y:m.y2}].forEach(pt=>{
+          const sp = this.worldToScreen(pt);
+          ctx.save(); ctx.fillStyle=P.handleFill; ctx.strokeStyle=P.handle; ctx.lineWidth=2;
+          ctx.fillRect(sp.x-5,sp.y-5,10,10); ctx.strokeRect(sp.x-5,sp.y-5,10,10);
+          ctx.restore();
+        });
+      }
+    });
+  },
+
+  drawMachineDraft(ctx){
+    const ds = ToolManager.dragState;
+    if(!ds || ds.type!=='draw-machine') return;
+    const a = this.worldToScreen({x:ds.x1,y:ds.y1}), b = this.worldToScreen({x:ds.x2,y:ds.y2});
+    const x=Math.min(a.x,b.x), y=Math.min(a.y,b.y), w=Math.abs(b.x-a.x), h=Math.abs(b.y-a.y);
+    ctx.save();
+    ctx.globalAlpha=0.6;
+    ctx.fillStyle='rgba(100,116,139,0.14)'; ctx.strokeStyle='#64748b'; ctx.lineWidth=1.8; ctx.setLineDash([6,4]);
+    ctx.fillRect(x,y,w,h); ctx.strokeRect(x,y,w,h);
+    ctx.restore();
+  },
+
   drawSymbols(ctx){
     const P = Theme.colors();
     AppState.symbols.forEach(sym=>{
@@ -1376,6 +1543,40 @@ const Renderer = {
       ctx.beginPath(); ctx.moveTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y); ctx.stroke();
       ctx.restore();
     }
+    if(ic.mode==='curve-draw' && ic.points.length>0){
+      const thickPx = Math.max(1,(AppState.currentWallThicknessCm/100)*CONFIG.PX_PER_M*AppState.view.zoom);
+      if(ic.points.length===1){
+        // 1/3: 시작점 → 커서까지 직선 안내선(끝점 위치를 잡는 단계)
+        const A = ic.points[0];
+        const preview = ic.previewPoint || A;
+        const p1 = this.worldToScreen(A), p2 = this.worldToScreen(preview);
+        ctx.save();
+        ctx.strokeStyle = P.wallSelected; ctx.globalAlpha=0.5; ctx.lineWidth=thickPx; ctx.setLineDash([6,4]);
+        ctx.beginPath(); ctx.moveTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y); ctx.stroke();
+        ctx.restore();
+        ctx.save(); ctx.fillStyle=P.wallSelected; ctx.beginPath(); ctx.arc(p1.x,p1.y,3,0,Math.PI*2); ctx.fill(); ctx.restore();
+      } else if(ic.points.length===2){
+        // 2/3: 세 번째 클릭(곡선이 지나갈 지점)까지 실시간으로 원호를 미리 보여준다
+        const A = ic.points[0], B = ic.points[1];
+        const C = ic.previewPoint || B;
+        const cc = Geo.circumcircle(A,B,C);
+        ctx.save();
+        ctx.strokeStyle = P.wallSelected; ctx.globalAlpha=0.6; ctx.lineWidth=thickPx; ctx.lineCap='round';
+        ctx.beginPath();
+        if(cc){
+          const angA=Math.atan2(A.y-cc.cy,A.x-cc.cx), angB=Math.atan2(B.y-cc.cy,B.x-cc.cx), angC=Math.atan2(C.y-cc.cy,C.x-cc.cx);
+          const anticlockwise = !Geo.angleInSweep(angC, angA, angB, false);
+          const cs = this.worldToScreen({x:cc.cx,y:cc.cy});
+          ctx.arc(cs.x, cs.y, cc.r*AppState.view.zoom, angA, angB, anticlockwise);
+        } else {
+          const p1=this.worldToScreen(A), p2=this.worldToScreen(B);
+          ctx.moveTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y);
+        }
+        ctx.stroke();
+        ctx.restore();
+        [A,B].forEach(pt=>{ const sp=this.worldToScreen(pt); ctx.save(); ctx.fillStyle=P.wallSelected; ctx.beginPath(); ctx.arc(sp.x,sp.y,3,0,Math.PI*2); ctx.fill(); ctx.restore(); });
+      }
+    }
   },
 
   drawSelectionHandles(ctx){
@@ -1383,7 +1584,7 @@ const Renderer = {
     const sel = AppState.selected;
     if(!sel || sel.type!=='wall') return;
     const w = AppState.walls.find(x=>x.id===sel.id);
-    if(!w) return;
+    if(!w || w.curve) return; // 곡면 벽은 끝점 드래그 편집을 지원하지 않음 (전체 이동만 가능)
     [{x:w.x1,y:w.y1},{x:w.x2,y:w.y2}].forEach(pt=>{
       const sp = this.worldToScreen(pt);
       ctx.save();
@@ -1425,11 +1626,12 @@ const Renderer = {
      of the current UI theme, so PNG/PDF output stays consistent for reports ---- */
   computeBounds(){
     const pts = [];
-    AppState.walls.forEach(w=>{ pts.push({x:w.x1,y:w.y1},{x:w.x2,y:w.y2}); });
+    AppState.walls.forEach(w=>{ pts.push({x:w.x1,y:w.y1},{x:w.x2,y:w.y2}); if(w.curve) pts.push(Geo.arcMidpoint(w.curve)); });
     AppState.symbols.forEach(s=>{ pts.push({x:s.x,y:s.y}); });
     AppState.wires.forEach(w=> w.points.forEach(p=>pts.push(p)));
     AppState.arrows.forEach(a=>{ pts.push({x:a.x1,y:a.y1},{x:a.x2,y:a.y2}); });
     AppState.roads.forEach(r=> r.points.forEach(p=>pts.push(p)));
+    AppState.machines.forEach(m=>{ pts.push({x:m.x1,y:m.y1},{x:m.x2,y:m.y2}); });
     if(pts.length===0) return {minX:-300,minY:-300,maxX:300,maxY:300};
     let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
     pts.forEach(p=>{ minX=Math.min(minX,p.x); minY=Math.min(minY,p.y); maxX=Math.max(maxX,p.x); maxY=Math.max(maxY,p.y); });
@@ -1535,25 +1737,67 @@ const Renderer = {
       }
     });
 
-    // walls
+    // walls (straight and curved)
     AppState.walls.forEach(w=>{
-      const p1=w2s({x:w.x1,y:w.y1}), p2=w2s({x:w.x2,y:w.y2});
       const thickPx = (w.thicknessCm/100)*CONFIG.PX_PER_M*zoom;
-      ctx.save(); ctx.lineCap='square'; ctx.strokeStyle=P.wall; ctx.lineWidth=Math.max(1,thickPx);
-      ctx.beginPath(); ctx.moveTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y); ctx.stroke(); ctx.restore();
+      ctx.save();
+      ctx.strokeStyle=P.wall; ctx.lineWidth=Math.max(1,thickPx);
+      ctx.beginPath();
+      if(w.curve){
+        ctx.lineCap='round'; ctx.lineJoin='round';
+        const cs = w2s({x:w.curve.cx,y:w.curve.cy});
+        ctx.arc(cs.x, cs.y, w.curve.r*zoom, w.curve.startAngle, w.curve.endAngle, w.curve.anticlockwise);
+      } else {
+        ctx.lineCap='square';
+        const p1=w2s({x:w.x1,y:w.y1}), p2=w2s({x:w.x2,y:w.y2});
+        ctx.moveTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y);
+      }
+      ctx.stroke(); ctx.restore();
 
-      const lenM = Geo.dist({x:w.x1,y:w.y1},{x:w.x2,y:w.y2})/CONFIG.PX_PER_M;
-      const mid={x:(p1.x+p2.x)/2,y:(p1.y+p2.y)/2};
-      const ang = Math.atan2(p2.y-p1.y,p2.x-p1.x);
-      ctx.save(); ctx.translate(mid.x,mid.y);
-      let rot=ang; if(rot>Math.PI/2||rot<-Math.PI/2) rot+=Math.PI;
-      ctx.rotate(rot);
-      ctx.font='20px sans-serif'; ctx.textAlign='center';
-      const label = lenM.toFixed(2)+'m';
-      const tw = ctx.measureText(label).width;
-      ctx.fillStyle='rgba(255,255,255,0.85)'; ctx.fillRect(-tw/2-4,-thickPx/2-28,tw+8,24);
-      ctx.fillStyle=P.dim; ctx.fillText(label,0,-thickPx/2-10);
+      if(w.curve){
+        const lenM = w.curve.r * Geo.arcSweep(w.curve) / CONFIG.PX_PER_M;
+        const mid = w2s(Geo.arcMidpoint(w.curve));
+        ctx.save();
+        ctx.font='20px sans-serif'; ctx.textAlign='center';
+        const label = lenM.toFixed(2)+'m (호)';
+        const tw = ctx.measureText(label).width;
+        ctx.fillStyle='rgba(255,255,255,0.85)'; ctx.fillRect(mid.x-tw/2-4,mid.y-thickPx/2-32,tw+8,24);
+        ctx.fillStyle=P.dim; ctx.fillText(label,mid.x,mid.y-thickPx/2-14);
+        ctx.restore();
+      } else {
+        const p1=w2s({x:w.x1,y:w.y1}), p2=w2s({x:w.x2,y:w.y2});
+        const lenM = Geo.dist({x:w.x1,y:w.y1},{x:w.x2,y:w.y2})/CONFIG.PX_PER_M;
+        const mid={x:(p1.x+p2.x)/2,y:(p1.y+p2.y)/2};
+        const ang = Math.atan2(p2.y-p1.y,p2.x-p1.x);
+        ctx.save(); ctx.translate(mid.x,mid.y);
+        let rot=ang; if(rot>Math.PI/2||rot<-Math.PI/2) rot+=Math.PI;
+        ctx.rotate(rot);
+        ctx.font='20px sans-serif'; ctx.textAlign='center';
+        const label = lenM.toFixed(2)+'m';
+        const tw = ctx.measureText(label).width;
+        ctx.fillStyle='rgba(255,255,255,0.85)'; ctx.fillRect(-tw/2-4,-thickPx/2-28,tw+8,24);
+        ctx.fillStyle=P.dim; ctx.fillText(label,0,-thickPx/2-10);
+        ctx.restore();
+      }
+    });
+
+    // machines (기계설비 사각형)
+    AppState.machines.forEach(m=>{
+      const a=w2s({x:m.x1,y:m.y1}), b=w2s({x:m.x2,y:m.y2});
+      const x=Math.min(a.x,b.x), y=Math.min(a.y,b.y), w=Math.abs(b.x-a.x), h=Math.abs(b.y-a.y);
+      ctx.save();
+      ctx.fillStyle='rgba(100,116,139,0.14)'; ctx.strokeStyle='#64748b'; ctx.lineWidth=2.4; ctx.setLineDash([9,6]);
+      ctx.fillRect(x,y,w,h); ctx.strokeRect(x,y,w,h);
       ctx.restore();
+      if(m.label){
+        ctx.save();
+        ctx.font='16px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+        const cx=x+w/2, cy=y+h/2;
+        const tw=ctx.measureText(m.label).width;
+        ctx.fillStyle='rgba(255,255,255,0.85)'; ctx.fillRect(cx-tw/2-5,cy-13,tw+10,26);
+        ctx.fillStyle=P.labelText; ctx.fillText(m.label, cx, cy);
+        ctx.restore();
+      }
     });
 
     // arrows
@@ -1615,6 +1859,8 @@ const Renderer = {
     if(AppState.meta.note){
       ctx.fillText('비고: '+AppState.meta.note, 16, 48+infoLines.length*18+4);
     }
+    ctx.font='10px sans-serif'; ctx.fillStyle='#9ca3af'; ctx.textAlign='right';
+    ctx.fillText('작성도구 v'+APP_VERSION, cw*0.62-8, legendH-8);
 
     ctx.font='bold 13px sans-serif'; ctx.fillStyle='#1f2430';
     ctx.fillText('범례', cw*0.62+14, 20);
@@ -1697,6 +1943,8 @@ const ToolManager = {
     const map = {
       select:'default',
       wall: cursorDataUri('cross', color),
+      curve: cursorDataUri('cross', color),
+      machine: cursorDataUri('cross', color),
       wire: cursorDataUri('cross', color),
       road: cursorDataUri('cross', color),
       arrow: cursorDataUri('cross', color),
@@ -1709,6 +1957,13 @@ const ToolManager = {
     const hint = document.getElementById('hint');
     let text = '';
     if(this.current==='wall') text = '클릭하여 벽을 그리세요 (연속 클릭으로 이어그리기, Esc/Enter로 종료)';
+    else if(this.current==='curve'){
+      const n = this.interaction.mode==='curve-draw' ? this.interaction.points.length : 0;
+      if(n===0) text = '곡면 벽 — 시작점을 클릭하세요 (1/3)';
+      else if(n===1) text = '곡면 벽 — 끝점을 클릭하세요 (2/3)';
+      else text = '곡면 벽 — 곡선이 지나갈 지점을 클릭해 완성하세요 (3/3), Esc로 취소';
+    }
+    else if(this.current==='machine') text = '드래그하여 기계설비 사각형을 그리세요 (배치 후 속성 패널에서 이름을 입력하세요)';
     else if(this.current==='wire') text = '클릭하여 배선 경로를 그리세요 (완료 시 자동으로 이름이 붙습니다, Esc/Enter/더블클릭으로 종료)';
     else if(this.current==='road') text = '클릭하여 도로를 그리세요 (Esc/Enter/더블클릭으로 종료)';
     else if(this.current==='arrow'){
@@ -1745,7 +2000,7 @@ function findWallAt(worldPt){
   let best=null, bestD=Infinity;
   AppState.walls.forEach(w=>{
     const half = (w.thicknessCm/100)*CONFIG.PX_PER_M/2;
-    const d = Geo.distToSegment(worldPt, {x:w.x1,y:w.y1}, {x:w.x2,y:w.y2});
+    const d = w.curve ? Geo.distToArc(worldPt, w.curve) : Geo.distToSegment(worldPt, {x:w.x1,y:w.y1}, {x:w.x2,y:w.y2});
     if(d < half+thresholdWorld && d<bestD){ bestD=d; best=w; }
   });
   return best;
@@ -1795,11 +2050,31 @@ function findArrowAt(worldPt){
 function findWallHandle(worldPt){
   const sel = AppState.selected;
   if(!sel || sel.type!=='wall') return null;
-  const w = AppState.walls.find(x=>x.id===sel.id); if(!w) return null;
+  const w = AppState.walls.find(x=>x.id===sel.id); if(!w || w.curve) return null; // 곡면 벽은 끝점 드래그 편집 미지원
   const threshold = 10/AppState.view.zoom;
   if(Geo.dist(worldPt,{x:w.x1,y:w.y1}) < threshold) return {wall:w, which:1};
   if(Geo.dist(worldPt,{x:w.x2,y:w.y2}) < threshold) return {wall:w, which:2};
   return null;
+}
+function findMachineHandle(worldPt){
+  const sel = AppState.selected;
+  if(!sel || sel.type!=='machine') return null;
+  const m = AppState.machines.find(x=>x.id===sel.id); if(!m) return null;
+  const threshold = 10/AppState.view.zoom;
+  if(Geo.dist(worldPt,{x:m.x1,y:m.y1}) < threshold) return {machine:m, which:1};
+  if(Geo.dist(worldPt,{x:m.x2,y:m.y2}) < threshold) return {machine:m, which:2};
+  return null;
+}
+function findMachineAt(worldPt){
+  let best=null, bestD=Infinity;
+  AppState.machines.forEach(m=>{
+    const minX=Math.min(m.x1,m.x2), maxX=Math.max(m.x1,m.x2), minY=Math.min(m.y1,m.y2), maxY=Math.max(m.y1,m.y2);
+    if(worldPt.x>=minX && worldPt.x<=maxX && worldPt.y>=minY && worldPt.y<=maxY){
+      const area = (maxX-minX)*(maxY-minY);
+      if(area < bestD){ bestD=area; best=m; } // 겹칠 경우 더 작은 사각형을 우선 선택
+    }
+  });
+  return best;
 }
 // finds the nearest existing wall endpoint near pt so new/edited wall segments click cleanly
 // into place at shared corners instead of leaving tiny sub-pixel gaps (freehand mode especially)
@@ -1884,6 +2159,44 @@ function onPointerDown(e){
     return;
   }
 
+  if(tool==='curve'){
+    const ic = ToolManager.interaction;
+    if(ic.mode!=='curve-draw'){
+      const snap = snapWallEndpoint(world);
+      const pt = {x:snap.x, y:snap.y};
+      ToolManager.interaction = { mode:'curve-draw', points:[pt], previewPoint:pt };
+    } else if(ic.points.length===1){
+      const snap = snapWallEndpoint(world);
+      ic.points.push({x:snap.x, y:snap.y});
+      ic.previewPoint = applyGridSnap(world);
+    } else if(ic.points.length===2){
+      const A = ic.points[0], B = ic.points[1], C = applyGridSnap(world);
+      const cc = Geo.circumcircle(A,B,C);
+      if(cc){
+        const angA = Math.atan2(A.y-cc.cy, A.x-cc.cx);
+        const angB = Math.atan2(B.y-cc.cy, B.x-cc.cx);
+        const angC = Math.atan2(C.y-cc.cy, C.x-cc.cx);
+        const anticlockwise = !Geo.angleInSweep(angC, angA, angB, false);
+        AppState.walls.push({
+          id: AppState.genId(), x1:A.x, y1:A.y, x2:B.x, y2:B.y, thicknessCm: AppState.currentWallThicknessCm,
+          curve: { cx:cc.cx, cy:cc.cy, r:cc.r, startAngle:angA, endAngle:angB, anticlockwise }
+        });
+        History.commit();
+      }
+      ToolManager.interaction = { mode:'idle', points:[], previewPoint:null };
+    }
+    ToolManager.updateHint();
+    Renderer.render();
+    return;
+  }
+
+  if(tool==='machine'){
+    const pt = applyGridSnap(world);
+    ToolManager.dragState = { type:'draw-machine', x1:pt.x, y1:pt.y, x2:pt.x, y2:pt.y };
+    Renderer.render();
+    return;
+  }
+
   if(tool==='wire'){
     let pt = applyGridSnap(world);
     const ic = ToolManager.interaction;
@@ -1931,6 +2244,11 @@ function onPointerDown(e){
       ToolManager.dragState = { type:'resize-arrow', arrowId:arrowHandle.arrow.id, which:arrowHandle.which };
       return;
     }
+    const machineHandle = findMachineHandle(world);
+    if(machineHandle){
+      ToolManager.dragState = { type:'resize-machine', machineId:machineHandle.machine.id, which:machineHandle.which };
+      return;
+    }
     const sym = findSymbolAt(world);
     if(sym){
       AppState.selected = { type:'symbol', id:sym.id };
@@ -1945,10 +2263,17 @@ function onPointerDown(e){
       UI.renderPropertyPanel(); Renderer.render();
       return;
     }
+    const machine = findMachineAt(world);
+    if(machine){
+      AppState.selected = { type:'machine', id:machine.id };
+      ToolManager.dragState = { type:'move-machine', id:machine.id, startWorld:world, orig:{x1:machine.x1,y1:machine.y1,x2:machine.x2,y2:machine.y2} };
+      UI.renderPropertyPanel(); Renderer.render();
+      return;
+    }
     const wall = findWallAt(world);
     if(wall){
       AppState.selected = { type:'wall', id:wall.id };
-      ToolManager.dragState = { type:'move-wall', id:wall.id, startWorld:world, orig:{x1:wall.x1,y1:wall.y1,x2:wall.x2,y2:wall.y2} };
+      ToolManager.dragState = { type:'move-wall', id:wall.id, startWorld:world, orig:{x1:wall.x1,y1:wall.y1,x2:wall.x2,y2:wall.y2}, origCurve: wall.curve ? {cx:wall.curve.cx, cy:wall.curve.cy} : null };
       UI.renderPropertyPanel(); Renderer.render();
       return;
     }
@@ -2003,6 +2328,16 @@ function onPointerMove(e){
     Renderer.render();
     return;
   }
+  if(ic.mode==='curve-draw'){
+    if(ic.points.length===1){
+      const epSnap = findNearestWallEndpoint(world, 16/AppState.view.zoom);
+      ic.previewPoint = epSnap ? {x:epSnap.x,y:epSnap.y} : applyGridSnap(world);
+    } else {
+      ic.previewPoint = applyGridSnap(world);
+    }
+    Renderer.render();
+    return;
+  }
 
   const ds = ToolManager.dragState;
   if(!ds){ UI.updateHud(); return; }
@@ -2015,6 +2350,11 @@ function onPointerMove(e){
   if(ds.type==='draw-arrow'){
     let pt = applyGridSnap(world);
     if(document.getElementById('chk-angle-snap').checked) pt = Geo.snapAngleFrom({x:ds.x1,y:ds.y1}, pt);
+    ds.x2 = pt.x; ds.y2 = pt.y;
+    Renderer.render(); return;
+  }
+  if(ds.type==='draw-machine'){
+    const pt = applyGridSnap(world);
     ds.x2 = pt.x; ds.y2 = pt.y;
     Renderer.render(); return;
   }
@@ -2035,6 +2375,19 @@ function onPointerMove(e){
     const wall = AppState.walls.find(w=>w.id===ds.id); if(!wall) return;
     const dx = world.x-ds.startWorld.x, dy = world.y-ds.startWorld.y;
     wall.x1=ds.orig.x1+dx; wall.y1=ds.orig.y1+dy; wall.x2=ds.orig.x2+dx; wall.y2=ds.orig.y2+dy;
+    if(wall.curve && ds.origCurve){ wall.curve.cx = ds.origCurve.cx+dx; wall.curve.cy = ds.origCurve.cy+dy; }
+    Renderer.render(); return;
+  }
+  if(ds.type==='move-machine'){
+    const m = AppState.machines.find(x=>x.id===ds.id); if(!m) return;
+    const dx = world.x-ds.startWorld.x, dy = world.y-ds.startWorld.y;
+    m.x1=ds.orig.x1+dx; m.y1=ds.orig.y1+dy; m.x2=ds.orig.x2+dx; m.y2=ds.orig.y2+dy;
+    Renderer.render(); return;
+  }
+  if(ds.type==='resize-machine'){
+    const m = AppState.machines.find(x=>x.id===ds.machineId); if(!m) return;
+    const pt = applyGridSnap(world);
+    if(ds.which===1){ m.x1=pt.x; m.y1=pt.y; } else { m.x2=pt.x; m.y2=pt.y; }
     Renderer.render(); return;
   }
   if(ds.type==='move-wire'){
@@ -2084,6 +2437,16 @@ function onPointerUp(e){
         const arrow = { id:AppState.genId(), kind:ds.kind, x1:ds.x1,y1:ds.y1,x2:ds.x2,y2:ds.y2 };
         AppState.arrows.push(arrow);
         AppState.selected = {type:'arrow', id:arrow.id};
+        History.commit();
+        UI.renderPropertyPanel();
+      }
+    } else if(ds.type==='draw-machine'){
+      const w = Math.abs(ds.x2-ds.x1), h = Math.abs(ds.y2-ds.y1);
+      if(w > 8 && h > 8){
+        AppState.machineCounter++;
+        const machine = { id:AppState.genId(), x1:ds.x1,y1:ds.y1,x2:ds.x2,y2:ds.y2, label:'설비 '+AppState.machineCounter };
+        AppState.machines.push(machine);
+        AppState.selected = {type:'machine', id:machine.id};
         History.commit();
         UI.renderPropertyPanel();
       }
@@ -2155,6 +2518,8 @@ function onKeyDown(e){
   if(e.key==='w' || e.key==='W') ToolManager.setTool('wall');
   if(e.key==='c' || e.key==='C') ToolManager.setTool('wire');
   if(e.key==='r' || e.key==='R') ToolManager.setTool('road');
+  if(e.key==='u' || e.key==='U') ToolManager.setTool('curve');
+  if(e.key==='m' || e.key==='M') ToolManager.setTool('machine');
   if(e.key==='a' || e.key==='A') ToolManager.startArrowTool('spread');
   if(e.key==='p' || e.key==='P') ToolManager.startArrowTool('photo');
 }
@@ -2172,6 +2537,7 @@ function deleteSelected(){
   if(sel.type==='wire') AppState.wires = AppState.wires.filter(w=>w.id!==sel.id);
   if(sel.type==='arrow') AppState.arrows = AppState.arrows.filter(a=>a.id!==sel.id);
   if(sel.type==='road') AppState.roads = AppState.roads.filter(r=>r.id!==sel.id);
+  if(sel.type==='machine') AppState.machines = AppState.machines.filter(m=>m.id!==sel.id);
   AppState.selected = null;
   if(renumberDefId) renumberSymbolsOfType(renumberDefId);
   History.commit(); UI.renderPropertyPanel(); Renderer.render();
@@ -2350,12 +2716,93 @@ const Modal = {
 };
 
 /* =====================================================================
-   17. UI
+   17. PATCH NOTES POPUP
+   ===================================================================== */
+const PatchNotes = {
+  // 패치가 나올 때마다 이 배열 맨 뒤에 새 버전 항목을 추가하세요.
+  entries: [
+    { version:'1.0', date:'2026-08-14', items:[
+      '벽난로 심볼을 전통 아궁이(부뚜막·아치형 화구·가마솥) 모양으로 변경',
+      '곡면 벽 그리기 도구 추가 — 시작점·끝점·통과점 3번 클릭으로 원호 벽 생성',
+      '기계설비 사각형 도구 추가 — 드래그로 그리고 이름(주석)을 자유롭게 수정 (공장화재 대비)'
+    ]},
+    { version:'1.1', date:'2026-08-16', items:[
+      '업데이트 시 무엇이 바뀌었는지 볼 수 있는 패치노트 팝업 추가',
+      '"오늘 하루 보지 않기" 체크박스로 팝업이 불필요하게 반복되지 않도록 개선'
+    ]}
+  ],
+
+  todayStr(){
+    const d = new Date();
+    return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  },
+  currentEntry(){
+    return this.entries.find(e=>e.version===APP_VERSION) || this.entries[this.entries.length-1];
+  },
+  shouldShow(){
+    let lastVersion=null, hideUntil=null;
+    try{
+      lastVersion = localStorage.getItem('fireScene2D.patchNotesLastVersion');
+      hideUntil = localStorage.getItem('fireScene2D.patchNotesHideUntil');
+    }catch(e){}
+    if(lastVersion !== APP_VERSION) return true; // 새 버전 노트는 최소 한 번은 보여준다
+    if(hideUntil && hideUntil >= this.todayStr()) return false; // 오늘 하루 보지 않기로 설정됨
+    return true;
+  },
+  dismiss(hideToday){
+    try{
+      localStorage.setItem('fireScene2D.patchNotesLastVersion', APP_VERSION);
+      if(hideToday) localStorage.setItem('fireScene2D.patchNotesHideUntil', this.todayStr());
+      else localStorage.removeItem('fireScene2D.patchNotesHideUntil');
+    }catch(e){}
+    document.getElementById('patchnotes-overlay').style.display = 'none';
+  },
+  show(){
+    const entry = this.currentEntry();
+    document.getElementById('patchnotes-title').textContent = '업데이트 안내 — v'+entry.version;
+    document.getElementById('patchnotes-subtitle').textContent = entry.date+' 패치에서 바뀐 점입니다.';
+    document.getElementById('patchnotes-list').innerHTML = entry.items.map(it=>'<li>'+escapeHtml(it)+'</li>').join('');
+
+    const older = this.entries.filter(e=>e.version!==entry.version).slice().reverse();
+    const historyEl = document.getElementById('patchnotes-history');
+    historyEl.innerHTML = older.length ? older.map(e=>
+      '<div class="pn-entry"><div class="pn-entry-title">v'+e.version+' ('+e.date+')</div><ul>'+e.items.map(it=>'<li>'+escapeHtml(it)+'</li>').join('')+'</ul></div>'
+    ).join('') : '<div style="font-size:12px;color:var(--text-dim);">이전 기록이 없습니다.</div>';
+    historyEl.style.display = 'none';
+    const toggle = document.getElementById('patchnotes-history-toggle');
+    toggle.textContent = '이전 업데이트 내역 보기 ▾';
+
+    document.getElementById('patchnotes-hide-today').checked = false;
+    document.getElementById('patchnotes-overlay').style.display = 'flex';
+  },
+  bind(){
+    document.getElementById('patchnotes-history-toggle').addEventListener('click', ()=>{
+      const historyEl = document.getElementById('patchnotes-history');
+      const toggle = document.getElementById('patchnotes-history-toggle');
+      const show = historyEl.style.display === 'none';
+      historyEl.style.display = show ? 'block' : 'none';
+      toggle.textContent = show ? '이전 업데이트 내역 숨기기 ▴' : '이전 업데이트 내역 보기 ▾';
+    });
+    document.getElementById('patchnotes-close').addEventListener('click', ()=>{
+      const hideToday = document.getElementById('patchnotes-hide-today').checked;
+      this.dismiss(hideToday);
+    });
+  },
+  init(){
+    this.bind();
+    if(this.entries.length && this.shouldShow()) this.show();
+  }
+};
+
+/* =====================================================================
+   18. UI
    ===================================================================== */
 const UI = {
   lastWorld: {x:0,y:0},
 
   init(){
+    const versionEl = document.getElementById('app-version');
+    if(versionEl) versionEl.textContent = 'v'+APP_VERSION;
     Theme.detectAndApply();
     Renderer.init();
     Renderer.centerView();
@@ -2370,6 +2817,7 @@ const UI = {
     this.updateThemeButton();
     ToolManager.setTool('select');
     Renderer.render();
+    PatchNotes.init();
   },
 
   buildSymItem(def){
@@ -2582,25 +3030,37 @@ const UI = {
 
     if(sel.type==='wall'){
       const w = AppState.walls.find(x=>x.id===sel.id); if(!w){ AppState.selected=null; return this.renderPropertyPanel(); }
-      const lenM = Geo.dist({x:w.x1,y:w.y1},{x:w.x2,y:w.y2})/CONFIG.PX_PER_M;
-      panel.innerHTML =
-        '<div class="row"><label>종류</label><span>벽</span></div>'+
-        '<div class="row"><label>길이(m)</label><input type="number" id="pw-len" value="'+lenM.toFixed(2)+'" min="0.05" step="0.01"></div>'+
-        '<div class="row"><label>두께(cm)</label><input type="number" id="pw-thick" value="'+w.thicknessCm+'" min="5" max="60" step="1"></div>'+
-        '<div class="prop-hint">길이를 입력하면 벽의 각도는 유지된 채 끝점(x2,y2) 쪽 길이만 정확히 조정됩니다. 실측값을 그대로 입력하세요.</div>'+
-        '<button class="btn-danger" id="pw-del">이 벽 삭제</button>';
-      document.getElementById('pw-len').addEventListener('change', e=>{
-        const newLenM = parseFloat(e.target.value);
-        if(!isFinite(newLenM) || newLenM<=0){ e.target.value = lenM.toFixed(2); return; }
-        const newLenPx = newLenM*CONFIG.PX_PER_M;
-        const curLenPx = Geo.dist({x:w.x1,y:w.y1},{x:w.x2,y:w.y2});
-        const ang = curLenPx>0.001 ? Math.atan2(w.y2-w.y1, w.x2-w.x1) : 0;
-        w.x2 = w.x1 + Math.cos(ang)*newLenPx;
-        w.y2 = w.y1 + Math.sin(ang)*newLenPx;
-        History.commit();
-        Renderer.render();
-        UI.renderPropertyPanel();
-      });
+      if(w.curve){
+        const lenM = w.curve.r * Geo.arcSweep(w.curve) / CONFIG.PX_PER_M;
+        const rM = w.curve.r / CONFIG.PX_PER_M;
+        panel.innerHTML =
+          '<div class="row"><label>종류</label><span>곡면 벽 (원호)</span></div>'+
+          '<div class="row"><label>호 길이</label><span>'+lenM.toFixed(2)+' m</span></div>'+
+          '<div class="row"><label>곡률 반지름</label><span>'+rM.toFixed(2)+' m</span></div>'+
+          '<div class="row"><label>두께(cm)</label><input type="number" id="pw-thick" value="'+w.thicknessCm+'" min="5" max="60" step="1"></div>'+
+          '<div class="prop-hint">곡면 벽은 전체 이동만 가능합니다. 모양을 다시 잡으려면 삭제 후 곡면 벽 도구로 다시 그리세요.</div>'+
+          '<button class="btn-danger" id="pw-del">이 벽 삭제</button>';
+      } else {
+        const lenM = Geo.dist({x:w.x1,y:w.y1},{x:w.x2,y:w.y2})/CONFIG.PX_PER_M;
+        panel.innerHTML =
+          '<div class="row"><label>종류</label><span>벽</span></div>'+
+          '<div class="row"><label>길이(m)</label><input type="number" id="pw-len" value="'+lenM.toFixed(2)+'" min="0.05" step="0.01"></div>'+
+          '<div class="row"><label>두께(cm)</label><input type="number" id="pw-thick" value="'+w.thicknessCm+'" min="5" max="60" step="1"></div>'+
+          '<div class="prop-hint">길이를 입력하면 벽의 각도는 유지된 채 끝점(x2,y2) 쪽 길이만 정확히 조정됩니다. 실측값을 그대로 입력하세요.</div>'+
+          '<button class="btn-danger" id="pw-del">이 벽 삭제</button>';
+        document.getElementById('pw-len').addEventListener('change', e=>{
+          const newLenM = parseFloat(e.target.value);
+          if(!isFinite(newLenM) || newLenM<=0){ e.target.value = lenM.toFixed(2); return; }
+          const newLenPx = newLenM*CONFIG.PX_PER_M;
+          const curLenPx = Geo.dist({x:w.x1,y:w.y1},{x:w.x2,y:w.y2});
+          const ang = curLenPx>0.001 ? Math.atan2(w.y2-w.y1, w.x2-w.x1) : 0;
+          w.x2 = w.x1 + Math.cos(ang)*newLenPx;
+          w.y2 = w.y1 + Math.sin(ang)*newLenPx;
+          History.commit();
+          Renderer.render();
+          UI.renderPropertyPanel();
+        });
+      }
       document.getElementById('pw-thick').addEventListener('input', e=>{ w.thicknessCm = parseFloat(e.target.value)||10; Renderer.render(); });
       document.getElementById('pw-thick').addEventListener('change', ()=> History.commit());
       document.getElementById('pw-del').addEventListener('click', deleteSelected);
@@ -2663,6 +3123,34 @@ const UI = {
       document.getElementById('proad-width').addEventListener('input', e=>{ r.widthM = parseFloat(e.target.value)||AppState.currentRoadWidthM; Renderer.render(); });
       document.getElementById('proad-width').addEventListener('change', ()=> History.commit());
       document.getElementById('proad-del').addEventListener('click', deleteSelected);
+    }
+    else if(sel.type==='machine'){
+      const m = AppState.machines.find(x=>x.id===sel.id); if(!m){ AppState.selected=null; return this.renderPropertyPanel(); }
+      const wM = Math.abs(m.x2-m.x1)/CONFIG.PX_PER_M, hM = Math.abs(m.y2-m.y1)/CONFIG.PX_PER_M;
+      panel.innerHTML =
+        '<div class="row"><label>종류</label><span>기계설비</span></div>'+
+        '<div class="row"><label>주석(이름)</label><input type="text" id="pm-label" value="'+escapeHtml(m.label||'')+'" placeholder="예: 프레스기"></div>'+
+        '<div class="row"><label>가로(m)</label><input type="number" id="pm-w" value="'+wM.toFixed(2)+'" min="0.1" step="0.05"></div>'+
+        '<div class="row"><label>세로(m)</label><input type="number" id="pm-h" value="'+hM.toFixed(2)+'" min="0.1" step="0.05"></div>'+
+        '<div class="prop-hint">공장·작업장 화재조사 시 기계설비 위치와 크기를 표시하는 범용 사각형입니다. 주석을 실제 설비명으로 바꿔 사용하세요.</div>'+
+        '<button class="btn-danger" id="pm-del">이 사각형 삭제</button>';
+      document.getElementById('pm-label').addEventListener('input', e=>{ m.label=e.target.value; Renderer.render(); });
+      document.getElementById('pm-label').addEventListener('change', ()=> History.commit());
+      document.getElementById('pm-w').addEventListener('change', e=>{
+        const newWM = parseFloat(e.target.value);
+        if(!isFinite(newWM) || newWM<=0){ e.target.value = wM.toFixed(2); return; }
+        const signX = (m.x2>=m.x1) ? 1 : -1;
+        m.x2 = m.x1 + signX*newWM*CONFIG.PX_PER_M;
+        History.commit(); Renderer.render(); UI.renderPropertyPanel();
+      });
+      document.getElementById('pm-h').addEventListener('change', e=>{
+        const newHM = parseFloat(e.target.value);
+        if(!isFinite(newHM) || newHM<=0){ e.target.value = hM.toFixed(2); return; }
+        const signY = (m.y2>=m.y1) ? 1 : -1;
+        m.y2 = m.y1 + signY*newHM*CONFIG.PX_PER_M;
+        History.commit(); Renderer.render(); UI.renderPropertyPanel();
+      });
+      document.getElementById('pm-del').addEventListener('click', deleteSelected);
     }
   }
 };
