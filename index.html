@@ -273,7 +273,8 @@
     </div>
     <div class="panel-section">
       <h3>기타 (부지/외부)</h3>
-      <button class="tool-btn" data-tool="road" id="tool-road"><span class="ic">🛣</span>도로 그리기 (R)</button>
+      <button class="tool-btn" data-road="paved" id="tool-road"><span class="ic">🛣</span>도로 그리기 (R)</button>
+      <button class="tool-btn" data-road="unpaved" id="tool-road-unpaved"><span class="ic">🟤</span>비포장도로 그리기 (D)</button>
       <div class="row" style="margin-top:2px;">
         <label>도로 폭</label>
         <select id="sel-road-width">
@@ -368,7 +369,7 @@
 /* =====================================================================
    1. CONFIG
    ===================================================================== */
-const APP_VERSION = '1.11';
+const APP_VERSION = '1.12';
 
 const CONFIG = {
   PX_PER_M: 60,
@@ -396,7 +397,7 @@ const Theme = {
       wall:'#2b2f36', wallSelected:'#2563eb', handle:'#2563eb', handleFill:'#ffffff',
       dim:'#7c8798', labelBg:'rgba(255,255,255,0.85)', labelText:'#374151',
       wire:'#1d4ed8', arrowSpread:'#ea580c', arrowPhoto:'#7c3aed',
-      road:'#78716c', roadCenterline:'#fde047',
+      road:'#78716c', roadCenterline:'#fde047', roadUnpaved:'#ab8a5f', roadUnpavedEdge:'#7a6142',
       scale:'#374151', north:'#374151'
     },
     dark: {
@@ -404,7 +405,7 @@ const Theme = {
       wall:'#d7dbe2', wallSelected:'#60a5fa', handle:'#60a5fa', handleFill:'#161a21',
       dim:'#9aa4b2', labelBg:'rgba(22,26,33,0.85)', labelText:'#e5e7eb',
       wire:'#60a5fa', arrowSpread:'#fb923c', arrowPhoto:'#a78bfa',
-      road:'#57534e', roadCenterline:'#fde047',
+      road:'#57534e', roadCenterline:'#fde047', roadUnpaved:'#a1815a', roadUnpavedEdge:'#6b5539',
       scale:'#d7dbe2', north:'#d7dbe2'
     }
   },
@@ -941,20 +942,21 @@ const AppState = {
   _seqCounter: 1,
   wireCounter: 0,
   roadCounter: 0,
+  unpavedRoadCounter: 0,
   machineCounter: 0,
   genId(){ return 'o'+(this._nextId++); },
   nextSeq(){ return this._seqCounter++; },
   reset(){
     this.walls=[]; this.symbols=[]; this.wires=[]; this.arrows=[]; this.roads=[]; this.machines=[];
     this.meta = { title:'', caseNumber:'', address:'', investigator:'', date:'', scaleLabel:'1:100', note:'' };
-    this._nextId = 1; this._seqCounter = 1; this.wireCounter = 0; this.roadCounter = 0; this.machineCounter = 0; this.selected=null;
+    this._nextId = 1; this._seqCounter = 1; this.wireCounter = 0; this.roadCounter = 0; this.unpavedRoadCounter = 0; this.machineCounter = 0; this.selected=null;
   },
   serialize(){
     return {
       version:2, exportedAt: new Date().toISOString(), appVersion: APP_VERSION,
       meta: this.meta, gridStepM: this.gridStepM,
       walls: this.walls, symbols: this.symbols, wires: this.wires, arrows: this.arrows, roads: this.roads, machines: this.machines,
-      wireCounter: this.wireCounter, roadCounter: this.roadCounter, machineCounter: this.machineCounter, seqCounter: this._seqCounter
+      wireCounter: this.wireCounter, roadCounter: this.roadCounter, unpavedRoadCounter: this.unpavedRoadCounter, machineCounter: this.machineCounter, seqCounter: this._seqCounter
     };
   },
   loadFrom(obj){
@@ -998,7 +1000,8 @@ const AppState = {
     });
     this._seqCounter = Math.max(obj.seqCounter||1, maxSeq+1);
     this.wireCounter = obj.wireCounter || this.wires.length;
-    this.roadCounter = obj.roadCounter || this.roads.length;
+    this.roadCounter = obj.roadCounter || this.roads.filter(r=>r.kind!=='unpaved').length;
+    this.unpavedRoadCounter = obj.unpavedRoadCounter || this.roads.filter(r=>r.kind==='unpaved').length;
     this.machineCounter = obj.machineCounter || this.machines.length;
 
     const numberedDefIds = new Set(SymbolLibrary.list().filter(d=>d.numbered).map(d=>d.id));
@@ -1303,17 +1306,29 @@ const Renderer = {
     const P = Theme.colors();
     AppState.roads.forEach(r=>{
       const isSel = AppState.selected && AppState.selected.type==='road' && AppState.selected.id===r.id;
+      const isUnpaved = r.kind==='unpaved';
       const widthPx = (r.widthM||AppState.currentRoadWidthM)*CONFIG.PX_PER_M*AppState.view.zoom;
       ctx.save();
       ctx.lineCap='round'; ctx.lineJoin='round';
-      ctx.strokeStyle = isSel ? P.wallSelected : P.road;
+      ctx.strokeStyle = isSel ? P.wallSelected : (isUnpaved ? P.roadUnpaved : P.road);
       ctx.lineWidth = Math.max(2, widthPx);
       ctx.beginPath();
       r.points.forEach((p,i)=>{ const sp=this.worldToScreen(p); if(i===0) ctx.moveTo(sp.x,sp.y); else ctx.lineTo(sp.x,sp.y); });
       ctx.stroke();
       ctx.restore();
 
-      if(widthPx > 6){
+      if(isUnpaved){
+        // 비포장도로: 가운데 선 없이, 거친 비정형 가장자리를 점선으로 표현
+        ctx.save();
+        ctx.strokeStyle = isSel ? P.wallSelected : P.roadUnpavedEdge;
+        ctx.lineWidth = Math.max(1.5, widthPx);
+        ctx.setLineDash([Math.max(3,widthPx*0.12), Math.max(3,widthPx*0.16)]);
+        ctx.globalAlpha = 0.5;
+        ctx.beginPath();
+        r.points.forEach((p,i)=>{ const sp=this.worldToScreen(p); if(i===0) ctx.moveTo(sp.x,sp.y); else ctx.lineTo(sp.x,sp.y); });
+        ctx.stroke();
+        ctx.restore();
+      } else if(widthPx > 6){
         ctx.save();
         ctx.strokeStyle = P.roadCenterline; ctx.lineWidth = Math.max(1, widthPx*0.04);
         ctx.setLineDash([Math.max(4,widthPx*0.35), Math.max(3,widthPx*0.25)]);
@@ -1567,7 +1582,8 @@ const Renderer = {
       const p1 = this.worldToScreen(last), p2 = this.worldToScreen(preview);
       const widthPx = AppState.currentRoadWidthM*CONFIG.PX_PER_M*AppState.view.zoom;
       ctx.save();
-      ctx.strokeStyle = P.road; ctx.globalAlpha=0.55; ctx.lineWidth=Math.max(2,widthPx); ctx.lineCap='round';
+      ctx.strokeStyle = ToolManager.pendingRoadKind==='unpaved' ? P.roadUnpaved : P.road;
+      ctx.globalAlpha=0.55; ctx.lineWidth=Math.max(2,widthPx); ctx.lineCap='round';
       ctx.beginPath(); ctx.moveTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y); ctx.stroke();
       ctx.restore();
     }
@@ -1677,7 +1693,8 @@ const Renderer = {
     AppState.symbols.forEach(sym=>{ if(SymbolLibrary.get(sym.defId)) usedDefs.add(sym.defId); });
     const usedArrowKinds = new Set(AppState.arrows.map(a=>a.kind));
     const hasWires = AppState.wires.length>0;
-    const hasRoads = AppState.roads.length>0;
+    const hasRoads = AppState.roads.some(r=>r.kind!=='unpaved');
+    const hasUnpavedRoads = AppState.roads.some(r=>r.kind==='unpaved');
 
     const legendEntries = [];
     usedDefs.forEach(defId=>{
@@ -1695,6 +1712,10 @@ const Renderer = {
       ctx.beginPath(); ctx.moveTo(-14,0); ctx.lineTo(14,0); ctx.stroke();
       ctx.strokeStyle=P.roadCenterline; ctx.lineWidth=1; ctx.setLineDash([4,3]);
       ctx.beginPath(); ctx.moveTo(-14,0); ctx.lineTo(14,0); ctx.stroke(); ctx.setLineDash([]);
+    } });
+    if(hasUnpavedRoads) legendEntries.push({ label:'비포장도로', draw:(ctx)=>{
+      ctx.strokeStyle=P.roadUnpaved; ctx.lineWidth=8; ctx.lineCap='round';
+      ctx.beginPath(); ctx.moveTo(-14,0); ctx.lineTo(14,0); ctx.stroke();
     } });
 
     const legendH = Math.max(130, 44 + Math.ceil(legendEntries.length/2)*24 + 14);
@@ -1717,15 +1738,25 @@ const Renderer = {
 
     // roads (drawn as a background/site layer, beneath the building itself)
     AppState.roads.forEach(r=>{
+      const isUnpaved = r.kind==='unpaved';
       const widthPx = (r.widthM||AppState.currentRoadWidthM)*CONFIG.PX_PER_M*zoom;
       ctx.save();
       ctx.lineCap='round'; ctx.lineJoin='round';
-      ctx.strokeStyle=P.road; ctx.lineWidth=Math.max(2,widthPx);
+      ctx.strokeStyle= isUnpaved ? P.roadUnpaved : P.road; ctx.lineWidth=Math.max(2,widthPx);
       ctx.beginPath();
       r.points.forEach((p,i)=>{ const sp=w2s(p); if(i===0) ctx.moveTo(sp.x,sp.y); else ctx.lineTo(sp.x,sp.y); });
       ctx.stroke();
       ctx.restore();
-      if(widthPx>6){
+      if(isUnpaved){
+        ctx.save();
+        ctx.strokeStyle=P.roadUnpavedEdge; ctx.lineWidth=Math.max(1.5,widthPx);
+        ctx.setLineDash([Math.max(3,widthPx*0.12), Math.max(3,widthPx*0.16)]);
+        ctx.globalAlpha=0.5;
+        ctx.beginPath();
+        r.points.forEach((p,i)=>{ const sp=w2s(p); if(i===0) ctx.moveTo(sp.x,sp.y); else ctx.lineTo(sp.x,sp.y); });
+        ctx.stroke();
+        ctx.restore();
+      } else if(widthPx>6){
         ctx.save();
         ctx.strokeStyle=P.roadCenterline; ctx.lineWidth=Math.max(1,widthPx*0.04);
         ctx.setLineDash([Math.max(4,widthPx*0.35), Math.max(3,widthPx*0.25)]);
@@ -1928,6 +1959,7 @@ const ToolManager = {
   current: 'select',
   pendingSymbolDefId: null,
   pendingArrowKind: null,
+  pendingRoadKind: 'paved',
   interaction: { mode:'idle', points:[], previewPoint:null },
   dragState: null,
   spacePressed: false,
@@ -1938,6 +1970,19 @@ const ToolManager = {
     this.pendingArrowKind = null;
     this.interaction = { mode:'idle', points:[], previewPoint:null };
     document.querySelectorAll('.tool-btn').forEach(b=> b.classList.toggle('active', b.dataset.tool===name));
+    document.querySelectorAll('.sym-item').forEach(b=> b.classList.remove('active-place'));
+    this.updateHint();
+    this.updateCursor();
+    Renderer.render();
+  },
+
+  startRoadTool(kind){
+    this.current = 'road';
+    this.pendingRoadKind = kind;
+    this.pendingSymbolDefId = null;
+    this.pendingArrowKind = null;
+    this.interaction = { mode:'idle', points:[], previewPoint:null };
+    document.querySelectorAll('.tool-btn').forEach(b=> b.classList.toggle('active', b.dataset.road===kind));
     document.querySelectorAll('.sym-item').forEach(b=> b.classList.remove('active-place'));
     this.updateHint();
     this.updateCursor();
@@ -1993,7 +2038,10 @@ const ToolManager = {
     }
     else if(this.current==='machine') text = '드래그하여 기계설비 사각형을 그리세요 (배치 후 속성 패널에서 이름을 입력하세요)';
     else if(this.current==='wire') text = '클릭하여 배선 경로를 그리세요 (완료 시 자동으로 이름이 붙습니다, Esc/Enter/더블클릭으로 종료)';
-    else if(this.current==='road') text = '클릭하여 도로를 그리세요 (Esc/Enter/더블클릭으로 종료)';
+    else if(this.current==='road'){
+      const label = this.pendingRoadKind==='unpaved' ? '비포장도로' : '도로';
+      text = '클릭하여 '+label+'를 그리세요 (Esc/Enter/더블클릭으로 종료)';
+    }
     else if(this.current==='arrow'){
       const label = this.pendingArrowKind==='spread' ? '연소확대방향' : '촬영방향';
       text = label+' 화살표 — 드래그하여 방향과 길이를 지정하세요';
@@ -2494,8 +2542,11 @@ function finishChain(){
     History.commit();
   }
   if(ic.mode==='road-chain' && ic.points.length>=2){
-    AppState.roadCounter++;
-    AppState.roads.push({ id:AppState.genId(), points: ic.points.map(p=>({...p})), widthM: AppState.currentRoadWidthM, label:'도로 '+AppState.roadCounter });
+    const kind = ToolManager.pendingRoadKind==='unpaved' ? 'unpaved' : 'paved';
+    let label;
+    if(kind==='unpaved'){ AppState.unpavedRoadCounter++; label = '비포장도로 '+AppState.unpavedRoadCounter; }
+    else { AppState.roadCounter++; label = '도로 '+AppState.roadCounter; }
+    AppState.roads.push({ id:AppState.genId(), kind, points: ic.points.map(p=>({...p})), widthM: AppState.currentRoadWidthM, label });
     History.commit();
   }
   ToolManager.interaction = { mode:'idle', points:[], previewPoint:null };
@@ -2545,7 +2596,8 @@ function onKeyDown(e){
   if(e.key==='v' || e.key==='V') ToolManager.setTool('select');
   if(e.key==='w' || e.key==='W') ToolManager.setTool('wall');
   if(e.key==='c' || e.key==='C') ToolManager.setTool('wire');
-  if(e.key==='r' || e.key==='R') ToolManager.setTool('road');
+  if(e.key==='r' || e.key==='R') ToolManager.startRoadTool('paved');
+  if(e.key==='d' || e.key==='D') ToolManager.startRoadTool('unpaved');
   if(e.key==='u' || e.key==='U') ToolManager.setTool('curve');
   if(e.key==='m' || e.key==='M') ToolManager.setTool('machine');
   if(e.key==='a' || e.key==='A') ToolManager.startArrowTool('spread');
@@ -2760,6 +2812,9 @@ const PatchNotes = {
     ]},
     { version:'1.11', date:'2026-08-16', items:[
       '화재조사 심볼에 "소사자" 마커 추가 (여러 명일 경우 자동으로 번호가 매겨집니다)'
+    ]},
+    { version:'1.12', date:'2026-08-16', items:[
+      '"기타(부지/외부)"에 비포장도로 그리기 도구 추가 — 기존 도로와 별도 색상/스타일로 구분 표시'
     ]}
   ],
 
@@ -2912,6 +2967,8 @@ const UI = {
     });
     document.getElementById('tool-arrow-spread').addEventListener('click', ()=> ToolManager.startArrowTool('spread'));
     document.getElementById('tool-arrow-photo').addEventListener('click', ()=> ToolManager.startArrowTool('photo'));
+    document.getElementById('tool-road').addEventListener('click', ()=> ToolManager.startRoadTool('paved'));
+    document.getElementById('tool-road-unpaved').addEventListener('click', ()=> ToolManager.startRoadTool('unpaved'));
 
     document.getElementById('btn-new').addEventListener('click', ()=>{
       if(confirm('새 도면을 시작하시겠습니까? 저장하지 않은 내용은 사라집니다.')){
@@ -3144,7 +3201,7 @@ const UI = {
     else if(sel.type==='road'){
       const r = AppState.roads.find(x=>x.id===sel.id); if(!r){ AppState.selected=null; return this.renderPropertyPanel(); }
       panel.innerHTML =
-        '<div class="row"><label>종류</label><span>도로</span></div>'+
+        '<div class="row"><label>종류</label><span>'+(r.kind==='unpaved'?'비포장도로':'도로')+'</span></div>'+
         '<div class="row"><label>라벨</label><input type="text" id="proad-label" value="'+escapeHtml(r.label||'')+'" placeholder="도로"></div>'+
         '<div class="row"><label>폭(m)</label><input type="number" id="proad-width" value="'+(r.widthM||AppState.currentRoadWidthM)+'" min="1" max="30" step="0.5"></div>'+
         '<div class="row"><label>점 개수</label><span>'+r.points.length+'</span></div>'+
