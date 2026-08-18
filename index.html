@@ -113,6 +113,11 @@
   .ext-hint{font-size:11px; color:var(--text-dim); margin-bottom:6px; line-height:1.4;}
   #ext-url{width:100%; padding:5px 7px; border:1px solid var(--border); border-radius:4px; margin-bottom:6px; background:var(--input-bg); color:var(--text);}
 
+  .bg-thumb-row{display:flex; align-items:center; gap:8px; margin-bottom:8px;}
+  .bg-thumb{width:44px; height:44px; object-fit:cover; border-radius:6px; border:1px solid var(--border); flex:0 0 auto; background:var(--subtle-bg);}
+  .bg-thumb-name{font-size:11px; color:var(--text-dim); line-height:1.4; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  #bg-image-controls .row label{white-space:nowrap;}
+
   /* ===== Canvas area ===== */
   #canvas-wrap{flex:1 1 auto; position:relative; overflow:hidden; background:var(--canvas-bg);}
   #canvas{display:block; position:absolute; top:0; left:0; touch-action:none;}
@@ -121,8 +126,21 @@
     padding:5px 10px; border-radius:6px; font-size:11px; pointer-events:none; white-space:nowrap;
   }
   #hint{
-    position:absolute; top:8px; left:50%; transform:translateX(-50%); background:rgba(37,99,235,.92); color:#fff;
-    padding:6px 14px; border-radius:6px; font-size:12px; display:none; pointer-events:none; white-space:nowrap;
+    position:absolute; top:14px; left:50%; transform:translateX(-50%); color:#fff;
+    background:linear-gradient(135deg,#2563eb,#1741b8);
+    padding:9px 18px; border-radius:10px; font-size:13px; font-weight:600; letter-spacing:.01em;
+    display:none; pointer-events:none; white-space:nowrap;
+    box-shadow:0 8px 22px rgba(29,78,216,.45), 0 0 0 1px rgba(255,255,255,.18) inset;
+  }
+  #hint.hint-pop{ animation: hint-pop .3s cubic-bezier(.34,1.56,.64,1); }
+  @keyframes hint-pop{
+    0%{ transform:translateX(-50%) scale(.82); opacity:0; }
+    100%{ transform:translateX(-50%) scale(1); opacity:1; }
+  }
+  .hint-key{
+    display:inline-block; background:rgba(255,255,255,.96); color:#1741b8;
+    padding:1px 7px; border-radius:5px; font-family:ui-monospace,Consolas,monospace;
+    font-size:11.5px; font-weight:700; margin:0 1px; box-shadow:0 1px 0 rgba(0,0,0,.15);
   }
   #titleblock-preview{
     position:absolute; right:10px; bottom:10px; background:var(--panel); border:1px solid var(--border);
@@ -252,6 +270,12 @@
     </div>
 
     <div class="panel-section">
+      <h3>배경 이미지</h3>
+      <div id="bg-image-controls"></div>
+      <input type="file" id="bg-file-input" accept="image/*" style="display:none">
+    </div>
+
+    <div class="panel-section">
       <h3>화재조사 심볼</h3>
       <div id="palette-fire"></div>
     </div>
@@ -321,6 +345,10 @@
         <input type="checkbox" id="chk-show-dims" checked>
         <label for="chk-show-dims">벽 치수선 표시</label>
       </div>
+      <div class="checkrow">
+        <input type="checkbox" id="chk-show-bg" checked>
+        <label for="chk-show-bg">배경 이미지 표시</label>
+      </div>
     </div>
     <div class="panel-section">
       <h3>도면 정보 (제목블록)</h3>
@@ -369,7 +397,7 @@
 /* =====================================================================
    1. CONFIG
    ===================================================================== */
-const APP_VERSION = '1.12';
+const APP_VERSION = '1.13';
 
 const CONFIG = {
   PX_PER_M: 60,
@@ -932,6 +960,10 @@ const SymbolLibrary = (function(){
    ===================================================================== */
 const AppState = {
   walls: [], symbols: [], wires: [], arrows: [], roads: [], machines: [],
+  // 배경 이미지는 실행취소(History) 스냅샷에는 포함하지 않음 — 큰 dataURL을 매 커밋마다
+  // 반복 저장하면 메모리를 크게 잡아먹기 때문. 대신 아래 bgDirty 플래그로 별도 저장 여부만 추적.
+  backgroundImage: null, // { dataUrl, x, y, scale, rotation, opacity, naturalWidth, naturalHeight, locked }
+  bgDirty: false,
   meta: { title:'', caseNumber:'', address:'', investigator:'', date:'', scaleLabel:'1:100', note:'' },
   view: { zoom:1, panX:0, panY:0 },
   gridStepM: 0.5,
@@ -946,8 +978,10 @@ const AppState = {
   machineCounter: 0,
   genId(){ return 'o'+(this._nextId++); },
   nextSeq(){ return this._seqCounter++; },
+  isUnsaved(){ return History.isDirty() || this.bgDirty; },
   reset(){
     this.walls=[]; this.symbols=[]; this.wires=[]; this.arrows=[]; this.roads=[]; this.machines=[];
+    this.backgroundImage = null; this.bgDirty = false;
     this.meta = { title:'', caseNumber:'', address:'', investigator:'', date:'', scaleLabel:'1:100', note:'' };
     this._nextId = 1; this._seqCounter = 1; this.wireCounter = 0; this.roadCounter = 0; this.unpavedRoadCounter = 0; this.machineCounter = 0; this.selected=null;
   },
@@ -956,6 +990,7 @@ const AppState = {
       version:2, exportedAt: new Date().toISOString(), appVersion: APP_VERSION,
       meta: this.meta, gridStepM: this.gridStepM,
       walls: this.walls, symbols: this.symbols, wires: this.wires, arrows: this.arrows, roads: this.roads, machines: this.machines,
+      backgroundImage: this.backgroundImage,
       wireCounter: this.wireCounter, roadCounter: this.roadCounter, unpavedRoadCounter: this.unpavedRoadCounter, machineCounter: this.machineCounter, seqCounter: this._seqCounter
     };
   },
@@ -966,6 +1001,8 @@ const AppState = {
     this.arrows = obj.arrows || [];
     this.roads = obj.roads || [];
     this.machines = obj.machines || [];
+    this.backgroundImage = obj.backgroundImage || null;
+    this.bgDirty = false;
     this.meta = Object.assign({title:'',caseNumber:'',address:'',investigator:'',date:'',scaleLabel:'1:100',note:''}, obj.meta||{});
     this.gridStepM = obj.gridStepM || 0.5;
 
@@ -1146,12 +1183,27 @@ function trySnapToWall(pt, thresholdWorld){
   let angleDeg = Math.atan2(b.y-a.y, b.x-a.x)*180/Math.PI;
   return { point:proj, angleDeg, wall:best };
 }
+// 회전된 사각형(배경 이미지) 안에 점이 있는지 검사 — 중심 기준으로 역회전시켜 축정렬 사각형으로 판정
+function pointInRotatedRect(pt, cx, cy, halfW, halfH, rotRad){
+  const dx = pt.x-cx, dy = pt.y-cy;
+  const cos = Math.cos(-rotRad), sin = Math.sin(-rotRad);
+  const lx = dx*cos - dy*sin, ly = dx*sin + dy*cos;
+  return Math.abs(lx)<=halfW && Math.abs(ly)<=halfH;
+}
+function findBackgroundAt(worldPt){
+  const bg = AppState.backgroundImage;
+  if(!bg || bg.locked) return null;
+  const halfW = bg.naturalWidth*bg.scale/2, halfH = bg.naturalHeight*bg.scale/2;
+  const rad = (bg.rotation||0)*Math.PI/180;
+  return pointInRotatedRect(worldPt, bg.x, bg.y, halfW, halfH, rad) ? bg : null;
+}
 
 /* =====================================================================
    9. RENDERER
    ===================================================================== */
 const Renderer = {
   canvas:null, ctx:null,
+  _bgImgCache: { dataUrl:null, img:null },
 
   init(){
     this.canvas = document.getElementById('canvas');
@@ -1179,6 +1231,15 @@ const Renderer = {
     AppState.view.panX = this.cssW/2;
     AppState.view.panY = this.cssH/2;
   },
+  // 배경 이미지의 회전을 반영한 네 꼭짓점(월드 좌표)을 반환 — 화면맞춤/내보내기 범위 계산용
+  backgroundCorners(){
+    const bg = AppState.backgroundImage; if(!bg) return [];
+    const hw = bg.naturalWidth*bg.scale/2, hh = bg.naturalHeight*bg.scale/2;
+    const rad = (bg.rotation||0)*Math.PI/180, cos=Math.cos(rad), sin=Math.sin(rad);
+    return [[-hw,-hh],[hw,-hh],[hw,hh],[-hw,hh]].map(([dx,dy])=>({
+      x: bg.x + dx*cos - dy*sin, y: bg.y + dx*sin + dy*cos
+    }));
+  },
   fitToContent(){
     const pts = [];
     AppState.walls.forEach(w=>{ pts.push({x:w.x1,y:w.y1},{x:w.x2,y:w.y2}); if(w.curve) pts.push(Geo.arcMidpoint(w.curve)); });
@@ -1187,6 +1248,7 @@ const Renderer = {
     AppState.arrows.forEach(a=>{ pts.push({x:a.x1,y:a.y1},{x:a.x2,y:a.y2}); });
     AppState.roads.forEach(r=> r.points.forEach(p=>pts.push(p)));
     AppState.machines.forEach(m=>{ pts.push({x:m.x1,y:m.y1},{x:m.x2,y:m.y2}); });
+    this.backgroundCorners().forEach(p=>pts.push(p));
     if(pts.length===0){ this.centerView(); return; }
     let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
     pts.forEach(p=>{ minX=Math.min(minX,p.x); minY=Math.min(minY,p.y); maxX=Math.max(maxX,p.x); maxY=Math.max(maxY,p.y); });
@@ -1204,6 +1266,7 @@ const Renderer = {
     const P = Theme.colors();
     ctx.clearRect(0,0,this.cssW,this.cssH);
     ctx.fillStyle = P.canvasBg; ctx.fillRect(0,0,this.cssW,this.cssH);
+    if(document.getElementById('chk-show-bg').checked) this.drawBackgroundImage(ctx);
     if(document.getElementById('chk-show-grid').checked) this.drawGrid(ctx);
     this.drawRoads(ctx);
     this.drawWires(ctx);
@@ -1219,6 +1282,27 @@ const Renderer = {
     this.drawNorthArrow(ctx);
     UI.updateHud();
     UI.updateTitleblockPreview();
+  },
+
+  drawBackgroundImage(ctx){
+    const bg = AppState.backgroundImage;
+    if(!bg) return;
+    if(this._bgImgCache.dataUrl !== bg.dataUrl){
+      const img = new Image();
+      img.onload = ()=> Renderer.render();
+      img.src = bg.dataUrl;
+      this._bgImgCache = { dataUrl: bg.dataUrl, img };
+    }
+    const img = this._bgImgCache.img;
+    if(!img || !img.complete || !img.naturalWidth) return;
+    const sp = this.worldToScreen({x:bg.x, y:bg.y});
+    ctx.save();
+    ctx.translate(sp.x, sp.y);
+    ctx.rotate((bg.rotation||0)*Math.PI/180);
+    ctx.globalAlpha = bg.opacity!=null ? bg.opacity : 0.6;
+    const w = bg.naturalWidth*bg.scale*AppState.view.zoom, h = bg.naturalHeight*bg.scale*AppState.view.zoom;
+    ctx.drawImage(img, -w/2, -h/2, w, h);
+    ctx.restore();
   },
 
   drawGrid(ctx){
@@ -1425,12 +1509,19 @@ const Renderer = {
 
   drawArrowDraft(ctx){
     const ds = ToolManager.dragState;
-    if(!ds || ds.type!=='draw-arrow') return;
+    const ic = ToolManager.interaction;
+    let x1,y1,x2,y2,kind;
+    if(ds && ds.type==='draw-arrow'){
+      x1=ds.x1; y1=ds.y1; x2=ds.x2; y2=ds.y2; kind=ds.kind;
+    } else if(ic.mode==='arrow-click-pending'){
+      const p = ic.previewPoint || {x:ic.x1,y:ic.y1};
+      x1=ic.x1; y1=ic.y1; x2=p.x; y2=p.y; kind=ic.kind;
+    } else return;
     const P = Theme.colors();
-    const p1=this.worldToScreen({x:ds.x1,y:ds.y1}), p2=this.worldToScreen({x:ds.x2,y:ds.y2});
-    const col = ds.kind==='spread' ? P.arrowSpread : P.arrowPhoto;
+    const p1=this.worldToScreen({x:x1,y:y1}), p2=this.worldToScreen({x:x2,y:y2});
+    const col = kind==='spread' ? P.arrowSpread : P.arrowPhoto;
     ctx.save(); ctx.globalAlpha=0.6;
-    this._strokeArrow(ctx,p1,p2,col, ds.kind==='photo');
+    this._strokeArrow(ctx,p1,p2,col, kind==='photo');
     ctx.restore();
   },
 
@@ -1676,6 +1767,7 @@ const Renderer = {
     AppState.arrows.forEach(a=>{ pts.push({x:a.x1,y:a.y1},{x:a.x2,y:a.y2}); });
     AppState.roads.forEach(r=> r.points.forEach(p=>pts.push(p)));
     AppState.machines.forEach(m=>{ pts.push({x:m.x1,y:m.y1},{x:m.x2,y:m.y2}); });
+    this.backgroundCorners().forEach(p=>pts.push(p));
     if(pts.length===0) return {minX:-300,minY:-300,maxX:300,maxY:300};
     let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
     pts.forEach(p=>{ minX=Math.min(minX,p.x); minY=Math.min(minY,p.y); maxX=Math.max(maxX,p.x); maxY=Math.max(maxY,p.y); });
@@ -1729,6 +1821,22 @@ const Renderer = {
     const zoom = scaleUp;
     const panX = -b.minX*zoom, panY = -b.minY*zoom;
     const w2s = (pt)=>({x:pt.x*zoom+panX, y:pt.y*zoom+panY});
+
+    // background image (표시 설정 체크박스를 존중 — 꺼져 있으면 내보내기에도 포함하지 않음)
+    if(AppState.backgroundImage && document.getElementById('chk-show-bg').checked){
+      const bg = AppState.backgroundImage;
+      const cached = this._bgImgCache;
+      if(cached.dataUrl===bg.dataUrl && cached.img && cached.img.complete && cached.img.naturalWidth){
+        const sp = w2s({x:bg.x, y:bg.y});
+        ctx.save();
+        ctx.translate(sp.x, sp.y);
+        ctx.rotate((bg.rotation||0)*Math.PI/180);
+        ctx.globalAlpha = bg.opacity!=null ? bg.opacity : 0.6;
+        const bw = bg.naturalWidth*bg.scale*zoom, bh = bg.naturalHeight*bg.scale*zoom;
+        ctx.drawImage(cached.img, -bw/2, -bh/2, bw, bh);
+        ctx.restore();
+      }
+    }
 
     // grid (light)
     const step = Geo.gridStepPx()*zoom;
@@ -2028,29 +2136,42 @@ const ToolManager = {
 
   updateHint(){
     const hint = document.getElementById('hint');
+    const key = t => '<span class="hint-key">'+t+'</span>';
+    const END_HINT = '더블클릭 또는 '+key('Enter')+'로 종료 · '+key('Esc')+' 취소';
     let text = '';
-    if(this.current==='wall') text = '클릭하여 벽을 그리세요 (연속 클릭으로 이어그리기, Esc/Enter로 종료)';
+    if(this.current==='wall') text = '클릭하여 벽을 그리세요 (이어그리기 가능) · '+key('Esc')+' / '+key('Enter')+' 종료';
     else if(this.current==='curve'){
       const n = this.interaction.mode==='curve-draw' ? this.interaction.points.length : 0;
-      if(n===0) text = '곡면 벽 — 시작점을 클릭하세요 (1/3)';
-      else if(n===1) text = '곡면 벽 — 끝점을 클릭하세요 (2/3)';
-      else text = '곡면 벽 — 곡선이 지나갈 지점을 클릭해 완성하세요 (3/3), Esc로 취소';
+      if(n===0) text = '곡면 벽 ① 시작점을 클릭하세요';
+      else if(n===1) text = '곡면 벽 ② 끝점을 클릭하세요 · '+key('Esc')+' 취소';
+      else text = '곡면 벽 ③ 곡선이 지나갈 지점을 클릭해 완성 · '+key('Esc')+' 취소';
     }
-    else if(this.current==='machine') text = '드래그하여 기계설비 사각형을 그리세요 (배치 후 속성 패널에서 이름을 입력하세요)';
-    else if(this.current==='wire') text = '클릭하여 배선 경로를 그리세요 (완료 시 자동으로 이름이 붙습니다, Esc/Enter/더블클릭으로 종료)';
+    else if(this.current==='machine') text = '드래그하여 기계설비 사각형을 그리세요 · 배치 후 속성 패널에서 이름 입력';
+    else if(this.current==='wire') text = '클릭하여 배선 경로를 그리세요 · '+END_HINT;
     else if(this.current==='road'){
       const label = this.pendingRoadKind==='unpaved' ? '비포장도로' : '도로';
-      text = '클릭하여 '+label+'를 그리세요 (Esc/Enter/더블클릭으로 종료)';
+      text = '클릭하여 '+label+'를 그리세요 · '+END_HINT;
     }
     else if(this.current==='arrow'){
       const label = this.pendingArrowKind==='spread' ? '연소확대방향' : '촬영방향';
-      text = label+' 화살표 — 드래그하여 방향과 길이를 지정하세요';
+      if(this.interaction.mode==='arrow-click-pending') text = label+' 화살표 — 끝점을 클릭하세요 · '+key('Esc')+' 취소';
+      else text = label+' 화살표 — 드래그하거나, 클릭 후 다시 클릭해서 방향·길이 지정';
     }
     else if(this.current==='place-symbol'){
       const def = SymbolLibrary.get(this.pendingSymbolDefId);
-      text = (def?def.name:'심볼')+' 배치 모드 — 캔버스를 클릭해 배치 (Esc로 종료)';
+      text = (def?def.name:'심볼')+' 배치 모드 — 캔버스를 클릭해 배치 · '+key('Esc')+' 종료';
     }
-    if(text){ hint.style.display='block'; hint.textContent=text; } else { hint.style.display='none'; }
+    if(text){
+      hint.style.display='block'; hint.innerHTML=text;
+      // 텍스트가 바뀔 때마다(같은 도구 안에서 단계가 넘어갈 때도) 팝 애니메이션을 다시 재생해
+      // 사용자 시선을 끌도록 함 — 클래스를 껐다 켜서 강제로 리플로우시킨다
+      hint.classList.remove('hint-pop');
+      void hint.offsetWidth;
+      hint.classList.add('hint-pop');
+    } else {
+      hint.style.display='none';
+      hint.classList.remove('hint-pop');
+    }
   },
 
   cancelInteraction(){
@@ -2298,8 +2419,26 @@ function onPointerDown(e){
   }
 
   if(tool==='arrow'){
+    const ic = ToolManager.interaction;
+    if(ic.mode==='arrow-click-pending'){
+      // 2클릭 모드의 두 번째 클릭 — 끝점을 확정하고 화살표를 완성한다
+      let pt = applyGridSnap(world);
+      if(document.getElementById('chk-angle-snap').checked) pt = Geo.snapAngleFrom({x:ic.x1,y:ic.y1}, pt);
+      const len = Geo.dist({x:ic.x1,y:ic.y1}, pt);
+      if(len > 8){
+        const arrow = { id:AppState.genId(), kind:ic.kind, x1:ic.x1, y1:ic.y1, x2:pt.x, y2:pt.y };
+        AppState.arrows.push(arrow);
+        AppState.selected = {type:'arrow', id:arrow.id};
+        History.commit();
+        UI.renderPropertyPanel();
+      }
+      ToolManager.interaction = { mode:'idle', points:[], previewPoint:null };
+      Renderer.render();
+      return;
+    }
+    // 첫 클릭: 이후 드래그하면 기존처럼 드래그로 그려지고, 움직임 없이 떼면 2클릭 모드로 전환된다
     const pt = applyGridSnap(world);
-    ToolManager.dragState = { type:'draw-arrow', kind: ToolManager.pendingArrowKind, x1:pt.x, y1:pt.y, x2:pt.x, y2:pt.y };
+    ToolManager.dragState = { type:'draw-arrow', kind: ToolManager.pendingArrowKind, x1:pt.x, y1:pt.y, x2:pt.x, y2:pt.y, startScreen:screen, moved:false };
     Renderer.render();
     return;
   }
@@ -2367,6 +2506,12 @@ function onPointerDown(e){
       UI.renderPropertyPanel(); Renderer.render();
       return;
     }
+    const bg = findBackgroundAt(world);
+    if(bg){
+      // 배경 이미지는 잠금 해제 상태일 때만 여기 도달 — 전체 이동만 지원(속성은 왼쪽 패널에서 조절)
+      ToolManager.dragState = { type:'move-background', startWorld:world, orig:{x:bg.x,y:bg.y} };
+      return;
+    }
     AppState.selected = null;
     UI.renderPropertyPanel(); Renderer.render();
   }
@@ -2414,6 +2559,13 @@ function onPointerMove(e){
     Renderer.render();
     return;
   }
+  if(ic.mode==='arrow-click-pending'){
+    let pt = applyGridSnap(world);
+    if(document.getElementById('chk-angle-snap').checked) pt = Geo.snapAngleFrom({x:ic.x1,y:ic.y1}, pt);
+    ic.previewPoint = pt;
+    Renderer.render();
+    return;
+  }
 
   const ds = ToolManager.dragState;
   if(!ds){ UI.updateHud(); return; }
@@ -2426,6 +2578,7 @@ function onPointerMove(e){
   if(ds.type==='draw-arrow'){
     let pt = applyGridSnap(world);
     if(document.getElementById('chk-angle-snap').checked) pt = Geo.snapAngleFrom({x:ds.x1,y:ds.y1}, pt);
+    if(!ds.moved && Geo.dist(screen, ds.startScreen) > 5) ds.moved = true;
     ds.x2 = pt.x; ds.y2 = pt.y;
     Renderer.render(); return;
   }
@@ -2478,6 +2631,13 @@ function onPointerMove(e){
     road.points = ds.orig.map(p=>({x:p.x+dx,y:p.y+dy}));
     Renderer.render(); return;
   }
+  if(ds.type==='move-background'){
+    const bg = AppState.backgroundImage; if(!bg) return;
+    bg.x = ds.orig.x + (world.x-ds.startWorld.x);
+    bg.y = ds.orig.y + (world.y-ds.startWorld.y);
+    AppState.bgDirty = true; UI.updateSaveIndicator();
+    Renderer.render(); return;
+  }
   if(ds.type==='move-arrow'){
     const arrow = AppState.arrows.find(a=>a.id===ds.id); if(!arrow) return;
     const dx = world.x-ds.startWorld.x, dy = world.y-ds.startWorld.y;
@@ -2508,13 +2668,19 @@ function onPointerUp(e){
   const ds = ToolManager.dragState;
   if(ds){
     if(ds.type==='draw-arrow'){
-      const len = Geo.dist({x:ds.x1,y:ds.y1},{x:ds.x2,y:ds.y2});
-      if(len > 8){
-        const arrow = { id:AppState.genId(), kind:ds.kind, x1:ds.x1,y1:ds.y1,x2:ds.x2,y2:ds.y2 };
-        AppState.arrows.push(arrow);
-        AppState.selected = {type:'arrow', id:arrow.id};
-        History.commit();
-        UI.renderPropertyPanel();
+      if(ds.moved){
+        const len = Geo.dist({x:ds.x1,y:ds.y1},{x:ds.x2,y:ds.y2});
+        if(len > 8){
+          const arrow = { id:AppState.genId(), kind:ds.kind, x1:ds.x1,y1:ds.y1,x2:ds.x2,y2:ds.y2 };
+          AppState.arrows.push(arrow);
+          AppState.selected = {type:'arrow', id:arrow.id};
+          History.commit();
+          UI.renderPropertyPanel();
+        }
+      } else {
+        // 드래그 없이 뗐다 = 클릭으로 시작점을 찍은 것 -> 2클릭 모드로 전환, 다음 클릭이 끝점
+        ToolManager.interaction = { mode:'arrow-click-pending', kind: ds.kind, x1: ds.x1, y1: ds.y1, previewPoint: {x:ds.x1,y:ds.y1} };
+        ToolManager.updateHint();
       }
     } else if(ds.type==='draw-machine'){
       const w = Math.abs(ds.x2-ds.x1), h = Math.abs(ds.y2-ds.y1);
@@ -2679,6 +2845,8 @@ const FileIO = {
     const name = (AppState.meta.title || AppState.meta.caseNumber || '화재현장도면').replace(/[\\/:*?"<>|]/g,'_');
     downloadBlob(JSON.stringify(data,null,2), name+'.json', 'application/json');
     History.markSaved();
+    AppState.bgDirty = false;
+    UI.updateSaveIndicator();
   },
   importJSON(file){
     const reader = new FileReader();
@@ -2688,6 +2856,7 @@ const FileIO = {
         AppState.loadFrom(obj);
         History.reset();
         UI.syncMetaFields();
+        UI.renderBackgroundPanel();
         Renderer.fitToContent();
         UI.renderPropertyPanel();
         Renderer.render();
@@ -2716,6 +2885,51 @@ const FileIO = {
     img.onload = ()=>{ window.print(); };
     img.src = dataUrl;
     area.appendChild(img);
+  }
+};
+
+/* =====================================================================
+   14b. BACKGROUND IMAGE (청사진/스캔본 등을 따라 그리기용 배경 레이어)
+   ===================================================================== */
+const BackgroundImageIO = {
+  MAX_DIM: 2000, // 이보다 큰 이미지는 축소해서 저장(JSON 용량/메모리 절약)
+  load(file){
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      const rawDataUrl = reader.result;
+      const img = new Image();
+      img.onload = ()=>{
+        let dataUrl = rawDataUrl, w = img.naturalWidth, h = img.naturalHeight;
+        if(Math.max(w,h) > this.MAX_DIM){
+          const ratio = this.MAX_DIM / Math.max(w,h);
+          const cw = Math.round(w*ratio), ch = Math.round(h*ratio);
+          const off = document.createElement('canvas'); off.width=cw; off.height=ch;
+          off.getContext('2d').drawImage(img, 0, 0, cw, ch);
+          dataUrl = off.toDataURL('image/jpeg', 0.85);
+          w = cw; h = ch;
+        }
+        // 화면에 보기 좋은 크기(가로 약 10m)로 초기 배율을 잡는다
+        const initialScale = (10*CONFIG.PX_PER_M) / w;
+        const center = Renderer.screenToWorld({x:Renderer.cssW/2, y:Renderer.cssH/2});
+        AppState.backgroundImage = {
+          dataUrl, x:center.x, y:center.y, scale:initialScale, rotation:0, opacity:0.6,
+          naturalWidth:w, naturalHeight:h, locked:true
+        };
+        AppState.bgDirty = true;
+        UI.renderBackgroundPanel();
+        UI.updateSaveIndicator();
+        Renderer.render();
+      };
+      img.src = rawDataUrl;
+    };
+    reader.readAsDataURL(file);
+  },
+  remove(){
+    AppState.backgroundImage = null;
+    AppState.bgDirty = true;
+    UI.renderBackgroundPanel();
+    UI.updateSaveIndicator();
+    Renderer.render();
   }
 };
 
@@ -2815,6 +3029,11 @@ const PatchNotes = {
     ]},
     { version:'1.12', date:'2026-08-16', items:[
       '"기타(부지/외부)"에 비포장도로 그리기 도구 추가 — 기존 도로와 별도 색상/스타일로 구분 표시'
+    ]},
+    { version:'1.13', date:'2026-08-16', items:[
+      '연소확대방향·촬영방향 화살표를 드래그뿐 아니라 클릭 두 번(시작점→끝점)으로도 그릴 수 있음',
+      '그리기 도구 안내 문구(상단 배너) 시인성 개선 — 더 크고 진하게, 키 안내를 뱃지로 표시, 단계 전환 시 팝 애니메이션 추가',
+      '배경 이미지 불러오기 기능 추가 — 청사진/스캔본을 배경에 놓고 투명도·크기·회전·위치를 조절하며 따라 그릴 수 있음 (왼쪽 "배경 이미지" 패널)'
     ]}
   ],
 
@@ -2900,6 +3119,8 @@ const UI = {
     this.bindMeta();
     this.bindTheme();
     this.bindExtensionLoader();
+    this.bindBackgroundImage();
+    this.renderBackgroundPanel();
     this.updateThemeButton();
     ToolManager.setTool('select');
     Renderer.render();
@@ -2972,7 +3193,7 @@ const UI = {
 
     document.getElementById('btn-new').addEventListener('click', ()=>{
       if(confirm('새 도면을 시작하시겠습니까? 저장하지 않은 내용은 사라집니다.')){
-        AppState.reset(); History.reset(); Renderer.centerView(); this.syncMetaFields(); this.renderPropertyPanel(); Renderer.render();
+        AppState.reset(); History.reset(); Renderer.centerView(); this.syncMetaFields(); this.renderBackgroundPanel(); this.renderPropertyPanel(); Renderer.render();
       }
     });
     document.getElementById('btn-open').addEventListener('click', ()=> document.getElementById('file-input').click());
@@ -2994,6 +3215,7 @@ const UI = {
     document.getElementById('sel-road-width').addEventListener('change', e=>{ AppState.currentRoadWidthM = parseFloat(e.target.value); });
     document.getElementById('chk-show-grid').addEventListener('change', ()=> Renderer.render());
     document.getElementById('chk-show-dims').addEventListener('change', ()=> Renderer.render());
+    document.getElementById('chk-show-bg').addEventListener('change', ()=> Renderer.render());
     document.getElementById('chk-grid-snap').addEventListener('change', ()=>{});
     document.getElementById('chk-angle-snap').addEventListener('change', ()=>{});
 
@@ -3037,7 +3259,7 @@ const UI = {
     window.addEventListener('keyup', onKeyUp);
     window.addEventListener('afterprint', ()=>{ document.getElementById('print-area').innerHTML=''; });
     window.addEventListener('beforeunload', e=>{
-      if(History.isDirty()){
+      if(AppState.isUnsaved()){
         e.preventDefault();
         e.returnValue = '';
       }
@@ -3055,7 +3277,7 @@ const UI = {
   updateSaveIndicator(){
     const btn = document.getElementById('btn-save');
     if(!btn) return;
-    const dirty = History.isDirty();
+    const dirty = AppState.isUnsaved();
     btn.textContent = dirty ? '저장 ●' : '저장';
     btn.title = dirty ? '저장되지 않은 변경사항이 있습니다 (Ctrl+S)' : 'JSON 저장 (Ctrl+S)';
   },
@@ -3070,6 +3292,42 @@ const UI = {
     document.getElementById('ext-file-input').addEventListener('change', e=>{
       if(e.target.files[0]) ExtensionLoader.loadFromFile(e.target.files[0]);
       e.target.value='';
+    });
+  },
+
+  bindBackgroundImage(){
+    document.getElementById('bg-file-input').addEventListener('change', e=>{
+      if(e.target.files[0]) BackgroundImageIO.load(e.target.files[0]);
+      e.target.value='';
+    });
+  },
+  renderBackgroundPanel(){
+    const el = document.getElementById('bg-image-controls');
+    const bg = AppState.backgroundImage;
+    if(!bg){
+      el.innerHTML =
+        '<div class="ext-hint">청사진·스캔본·항공사진 등을 불러와 배경에 놓고 따라 그릴 수 있습니다.</div>'+
+        '<button class="tpl-btn" id="bg-load-btn">이미지 불러오기</button>';
+      document.getElementById('bg-load-btn').addEventListener('click', ()=> document.getElementById('bg-file-input').click());
+      return;
+    }
+    const widthM = (bg.naturalWidth*bg.scale/CONFIG.PX_PER_M).toFixed(2);
+    el.innerHTML =
+      '<div class="row"><label>투명도</label><input type="range" id="bg-opacity" min="0.1" max="1" step="0.05" value="'+bg.opacity+'"></div>'+
+      '<div class="row"><label>표시 폭(m)</label><input type="number" id="bg-width" value="'+widthM+'" min="0.5" step="0.1"></div>'+
+      '<div class="row"><label>회전(°)</label><input type="range" id="bg-rotation" min="0" max="359" value="'+(bg.rotation||0)+'"></div>'+
+      '<div class="checkrow"><input type="checkbox" id="bg-locked" '+(bg.locked?'checked':'')+'><label for="bg-locked">위치 잠금 (캔버스에서 드래그 이동 방지)</label></div>'+
+      '<button class="btn-danger" id="bg-remove-btn">배경 이미지 제거</button>';
+    document.getElementById('bg-opacity').addEventListener('input', e=>{ bg.opacity = parseFloat(e.target.value); AppState.bgDirty=true; this.updateSaveIndicator(); Renderer.render(); });
+    document.getElementById('bg-width').addEventListener('change', e=>{
+      const wM = parseFloat(e.target.value);
+      if(isFinite(wM) && wM>0){ bg.scale = (wM*CONFIG.PX_PER_M)/bg.naturalWidth; AppState.bgDirty=true; this.updateSaveIndicator(); Renderer.render(); }
+      else e.target.value = widthM;
+    });
+    document.getElementById('bg-rotation').addEventListener('input', e=>{ bg.rotation = parseFloat(e.target.value); AppState.bgDirty=true; this.updateSaveIndicator(); Renderer.render(); });
+    document.getElementById('bg-locked').addEventListener('change', e=>{ bg.locked = e.target.checked; AppState.bgDirty=true; this.updateSaveIndicator(); });
+    document.getElementById('bg-remove-btn').addEventListener('click', ()=>{
+      if(confirm('배경 이미지를 제거하시겠습니까?')) BackgroundImageIO.remove();
     });
   },
 
