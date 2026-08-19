@@ -349,6 +349,11 @@
         <input type="checkbox" id="chk-show-bg" checked>
         <label for="chk-show-bg">배경 이미지 표시</label>
       </div>
+      <div class="row" style="margin-top:6px;">
+        <label>북쪽 방향(°)</label>
+        <input type="number" id="north-angle-input" value="0" min="0" max="359" step="1" style="width:110px;">
+      </div>
+      <div class="prop-hint" style="margin-bottom:0;">우측 상단 나침반을 직접 드래그해서 돌릴 수도 있습니다. 건물을 북향과 다르게 그렸을 때, 나침반만 실제 북쪽에 맞춰 회전시키세요 (도면 내용은 그대로 유지됩니다).</div>
     </div>
     <div class="panel-section">
       <h3>도면 정보 (제목블록)</h3>
@@ -397,7 +402,7 @@
 /* =====================================================================
    1. CONFIG
    ===================================================================== */
-const APP_VERSION = '1.13';
+const APP_VERSION = '1.2';
 
 const CONFIG = {
   PX_PER_M: 60,
@@ -834,6 +839,16 @@ const SymbolLibrary = (function(){
     {type:'circle', cx:0,cy:0,r:0.10, stroke:'#57534e', fill:'#a8a29e', lw:1.6}
   ]);
 
+  // 자동차 (평면도 축척에 맞춘 기본형 승용차: 전장 4.6m x 전폭 1.8m — 배율 1일 때 실제 크기로 표시됨)
+  regShape('misc_car','자동차','기타', CONFIG.PX_PER_M*4.6, [
+    {type:'rect', x:-0.5, y:-0.196, w:1.0, h:0.392, r:0.06, stroke:'#1e3a5f', fill:'#93a5b8', lw:1.6},
+    {type:'rect', x:-0.16, y:-0.15, w:0.40, h:0.30, r:0.04, stroke:'#1e3a5f', fill:'#cfd8e3', lw:1.2},
+    {type:'line', x1:-0.42,y1:-0.196,x2:-0.34,y2:-0.196, stroke:'#1e3a5f', lw:3},
+    {type:'line', x1:-0.42,y1:0.196,x2:-0.34,y2:0.196, stroke:'#1e3a5f', lw:3},
+    {type:'line', x1:0.34,y1:-0.196,x2:0.42,y2:-0.196, stroke:'#1e3a5f', lw:3},
+    {type:'line', x1:0.34,y1:0.196,x2:0.42,y2:0.196, stroke:'#1e3a5f', lw:3}
+  ], {color:'#1e3a5f'});
+
   /* ---- 가전제품 preset folder (전기/가전 하위, 접기/펼치기) ---- */
   const AP = {subcategory:'가전제품', color:'#334155'};
   regShape('appl_fridge','냉장고','전기/가전',34,[
@@ -967,6 +982,7 @@ const AppState = {
   meta: { title:'', caseNumber:'', address:'', investigator:'', date:'', scaleLabel:'1:100', note:'' },
   view: { zoom:1, panX:0, panY:0 },
   gridStepM: 0.5,
+  northAngleDeg: 0, // 0 = 화면 위쪽이 북쪽(기본값). 건물을 북향과 다르게 그렸을 때 나침반만 돌려서 표기.
   currentWallThicknessCm: 15,
   currentRoadWidthM: 6,
   selected: null, // {type:'wall'|'symbol'|'wire'|'arrow'|'road'|'machine', id}
@@ -983,12 +999,13 @@ const AppState = {
     this.walls=[]; this.symbols=[]; this.wires=[]; this.arrows=[]; this.roads=[]; this.machines=[];
     this.backgroundImage = null; this.bgDirty = false;
     this.meta = { title:'', caseNumber:'', address:'', investigator:'', date:'', scaleLabel:'1:100', note:'' };
+    this.northAngleDeg = 0;
     this._nextId = 1; this._seqCounter = 1; this.wireCounter = 0; this.roadCounter = 0; this.unpavedRoadCounter = 0; this.machineCounter = 0; this.selected=null;
   },
   serialize(){
     return {
       version:2, exportedAt: new Date().toISOString(), appVersion: APP_VERSION,
-      meta: this.meta, gridStepM: this.gridStepM,
+      meta: this.meta, gridStepM: this.gridStepM, northAngleDeg: this.northAngleDeg,
       walls: this.walls, symbols: this.symbols, wires: this.wires, arrows: this.arrows, roads: this.roads, machines: this.machines,
       backgroundImage: this.backgroundImage,
       wireCounter: this.wireCounter, roadCounter: this.roadCounter, unpavedRoadCounter: this.unpavedRoadCounter, machineCounter: this.machineCounter, seqCounter: this._seqCounter
@@ -1005,6 +1022,7 @@ const AppState = {
     this.bgDirty = false;
     this.meta = Object.assign({title:'',caseNumber:'',address:'',investigator:'',date:'',scaleLabel:'1:100',note:''}, obj.meta||{});
     this.gridStepM = obj.gridStepM || 0.5;
+    this.northAngleDeg = obj.northAngleDeg || 0;
 
     let maxN = 0;
     [...this.walls, ...this.symbols, ...this.wires, ...this.arrows, ...this.roads, ...this.machines].forEach(o=>{
@@ -1744,16 +1762,22 @@ const Renderer = {
     ctx.restore();
   },
 
+  // 나침반 자체 중심(this.cssW-40, 40) 기준 반지름 20px 이내를 드래그하면 회전시킬 수 있음
+  // (CANVAS INPUT HANDLING의 'rotate-north' 드래그 참고). 화면 위=0°, 시계방향으로 증가.
   drawNorthArrow(ctx){
     const P = Theme.colors();
     const x = this.cssW-40, y=40;
+    const angRad = (AppState.northAngleDeg||0)*Math.PI/180;
     ctx.save();
     ctx.translate(x,y);
     ctx.strokeStyle=P.north; ctx.fillStyle=P.north; ctx.lineWidth=1.5;
     ctx.beginPath(); ctx.arc(0,0,16,0,Math.PI*2); ctx.stroke();
+    ctx.save();
+    ctx.rotate(angRad);
     ctx.beginPath(); ctx.moveTo(0,-13); ctx.lineTo(5,6); ctx.lineTo(0,2); ctx.lineTo(-5,6); ctx.closePath(); ctx.fill();
-    ctx.font='10px sans-serif'; ctx.textAlign='center';
-    ctx.fillText('N', 0, 28);
+    ctx.restore();
+    ctx.font='10px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('N', Math.sin(angRad)*27, -Math.cos(angRad)*27);
     ctx.restore();
   },
 
@@ -2001,9 +2025,14 @@ const Renderer = {
     ctx.font='16px sans-serif'; ctx.fillText(barMeters+' m', x0, y0-12);
     const nx=contentW-50, ny=50;
     ctx.translate(nx,ny);
+    const northAngRad = (AppState.northAngleDeg||0)*Math.PI/180;
     ctx.beginPath(); ctx.arc(0,0,22,0,Math.PI*2); ctx.stroke();
+    ctx.save();
+    ctx.rotate(northAngRad);
     ctx.beginPath(); ctx.moveTo(0,-18); ctx.lineTo(7,8); ctx.lineTo(0,3); ctx.lineTo(-7,8); ctx.closePath(); ctx.fill();
-    ctx.font='14px sans-serif'; ctx.textAlign='center'; ctx.fillText('N',0,40);
+    ctx.restore();
+    ctx.font='14px sans-serif'; ctx.textAlign='center';
+    ctx.fillText('N', Math.sin(northAngRad)*37, -Math.cos(northAngRad)*37+5);
     ctx.restore();
 
     // title block + legend at bottom
@@ -2449,6 +2478,11 @@ function onPointerDown(e){
   }
 
   if(tool==='select'){
+    const northCenter = { x: Renderer.cssW-40, y: 40 };
+    if(Geo.dist(screen, northCenter) < 20){
+      ToolManager.dragState = { type:'rotate-north' };
+      return;
+    }
     const wallHandle = findWallHandle(world);
     if(wallHandle){
       ToolManager.dragState = { type:'resize-wall', wallId:wallHandle.wall.id, which:wallHandle.which };
@@ -2512,8 +2546,11 @@ function onPointerDown(e){
       ToolManager.dragState = { type:'move-background', startWorld:world, orig:{x:bg.x,y:bg.y} };
       return;
     }
+    // 아무 것도 선택되지 않음: 클릭이면 선택 해제로 끝나고, 드래그하면 화면 이동(패닝)이 됨 —
+    // 가운데 마우스 버튼을 누르지 않아도 좌클릭 드래그만으로 화면을 옮길 수 있게 함
     AppState.selected = null;
     UI.renderPropertyPanel(); Renderer.render();
+    ToolManager.dragState = { type:'pan', startScreen:screen, startPan:{...AppState.view} };
   }
 }
 
@@ -2629,6 +2666,15 @@ function onPointerMove(e){
     const road = AppState.roads.find(r=>r.id===ds.id); if(!road) return;
     const dx = world.x-ds.startWorld.x, dy = world.y-ds.startWorld.y;
     road.points = ds.orig.map(p=>({x:p.x+dx,y:p.y+dy}));
+    Renderer.render(); return;
+  }
+  if(ds.type==='rotate-north'){
+    const northCenter = { x: Renderer.cssW-40, y: 40 };
+    const dx = screen.x-northCenter.x, dy = screen.y-northCenter.y;
+    let angDeg = Math.atan2(dx,-dy)*180/Math.PI;
+    if(angDeg<0) angDeg+=360;
+    AppState.northAngleDeg = angDeg;
+    UI.updateNorthAngleInput();
     Renderer.render(); return;
   }
   if(ds.type==='move-background'){
@@ -3034,6 +3080,12 @@ const PatchNotes = {
       '연소확대방향·촬영방향 화살표를 드래그뿐 아니라 클릭 두 번(시작점→끝점)으로도 그릴 수 있음',
       '그리기 도구 안내 문구(상단 배너) 시인성 개선 — 더 크고 진하게, 키 안내를 뱃지로 표시, 단계 전환 시 팝 애니메이션 추가',
       '배경 이미지 불러오기 기능 추가 — 청사진/스캔본을 배경에 놓고 투명도·크기·회전·위치를 조절하며 따라 그릴 수 있음 (왼쪽 "배경 이미지" 패널)'
+    ]},
+    { version:'1.2', date:'2026-08-19', items:[
+      '나침반 회전 기능 추가 — 우측 상단 나침반을 드래그하거나 각도를 직접 입력해 실제 북쪽에 맞출 수 있음(도면 내용은 그대로 유지)',
+      '"기타" 프리셋에 실제 축척(전장 4.6m x 전폭 1.8m)의 자동차 에셋 추가',
+      '선택 도구에서 가운데 마우스 버튼 없이도 좌클릭 드래그만으로 화면을 이동할 수 있도록 개선',
+      '회전 조절 게이지(심볼/배경 이미지) 아래에 정밀 값 입력칸 추가 — 미세 조절이 어렵던 문제 개선'
     ]}
   ],
 
@@ -3216,6 +3268,12 @@ const UI = {
     document.getElementById('chk-show-grid').addEventListener('change', ()=> Renderer.render());
     document.getElementById('chk-show-dims').addEventListener('change', ()=> Renderer.render());
     document.getElementById('chk-show-bg').addEventListener('change', ()=> Renderer.render());
+    document.getElementById('north-angle-input').addEventListener('input', e=>{
+      let v = parseFloat(e.target.value); if(!isFinite(v)) v = 0;
+      v = ((v%360)+360)%360;
+      AppState.northAngleDeg = v;
+      Renderer.render();
+    });
     document.getElementById('chk-grid-snap').addEventListener('change', ()=>{});
     document.getElementById('chk-angle-snap').addEventListener('change', ()=>{});
 
@@ -3316,6 +3374,7 @@ const UI = {
       '<div class="row"><label>투명도</label><input type="range" id="bg-opacity" min="0.1" max="1" step="0.05" value="'+bg.opacity+'"></div>'+
       '<div class="row"><label>표시 폭(m)</label><input type="number" id="bg-width" value="'+widthM+'" min="0.5" step="0.1"></div>'+
       '<div class="row"><label>회전(°)</label><input type="range" id="bg-rotation" min="0" max="359" value="'+(bg.rotation||0)+'"></div>'+
+      '<div class="row"><label style="font-size:10.5px;">↳ 정밀 값 입력</label><input type="number" id="bg-rotation-num" min="0" max="359" step="1" value="'+(bg.rotation||0)+'" style="width:110px;"></div>'+
       '<div class="checkrow"><input type="checkbox" id="bg-locked" '+(bg.locked?'checked':'')+'><label for="bg-locked">위치 잠금 (캔버스에서 드래그 이동 방지)</label></div>'+
       '<button class="btn-danger" id="bg-remove-btn">배경 이미지 제거</button>';
     document.getElementById('bg-opacity').addEventListener('input', e=>{ bg.opacity = parseFloat(e.target.value); AppState.bgDirty=true; this.updateSaveIndicator(); Renderer.render(); });
@@ -3324,7 +3383,13 @@ const UI = {
       if(isFinite(wM) && wM>0){ bg.scale = (wM*CONFIG.PX_PER_M)/bg.naturalWidth; AppState.bgDirty=true; this.updateSaveIndicator(); Renderer.render(); }
       else e.target.value = widthM;
     });
-    document.getElementById('bg-rotation').addEventListener('input', e=>{ bg.rotation = parseFloat(e.target.value); AppState.bgDirty=true; this.updateSaveIndicator(); Renderer.render(); });
+    const bgRot = document.getElementById('bg-rotation'), bgRotNum = document.getElementById('bg-rotation-num');
+    bgRot.addEventListener('input', e=>{ bg.rotation = parseFloat(e.target.value); bgRotNum.value = e.target.value; AppState.bgDirty=true; this.updateSaveIndicator(); Renderer.render(); });
+    bgRotNum.addEventListener('input', e=>{
+      let v = parseFloat(e.target.value); if(!isFinite(v)) return;
+      v = ((v%360)+360)%360;
+      bg.rotation = v; bgRot.value = v; AppState.bgDirty=true; this.updateSaveIndicator(); Renderer.render();
+    });
     document.getElementById('bg-locked').addEventListener('change', e=>{ bg.locked = e.target.checked; AppState.bgDirty=true; this.updateSaveIndicator(); });
     document.getElementById('bg-remove-btn').addEventListener('click', ()=>{
       if(confirm('배경 이미지를 제거하시겠습니까?')) BackgroundImageIO.remove();
@@ -3348,7 +3413,13 @@ const UI = {
     document.getElementById('meta-scale').value = AppState.meta.scaleLabel||'1:100';
     document.getElementById('meta-note').value = AppState.meta.note||'';
     document.getElementById('sel-grid-step').value = String(AppState.gridStepM);
+    this.updateNorthAngleInput();
     this.updateTitleblockPreview();
+  },
+
+  updateNorthAngleInput(){
+    const el = document.getElementById('north-angle-input');
+    if(el && document.activeElement!==el) el.value = Math.round(AppState.northAngleDeg||0);
   },
 
   updateHud(){
@@ -3421,13 +3492,21 @@ const UI = {
         '<div class="row"><label>종류</label><span>'+escapeHtml(def.name)+'</span></div>'+
         '<div class="row"><label>라벨</label><input type="text" id="ps-label" value="'+escapeHtml(s.label||'')+'" placeholder="'+escapeHtml(def.name)+'"></div>'+
         '<div class="row"><label>회전(°)</label><input type="range" id="ps-rot" min="0" max="359" value="'+(s.rotation||0)+'"></div>'+
+        '<div class="row"><label style="font-size:10.5px;">↳ 정밀 값 입력</label><input type="number" id="ps-rot-num" min="0" max="359" step="1" value="'+(s.rotation||0)+'" style="width:110px;"></div>'+
         '<div class="row"><label>크기</label><input type="range" id="ps-scale" min="0.5" max="2.5" step="0.1" value="'+(s.scale||1)+'"></div>'+
         hint+
         '<button class="btn-danger" id="ps-del">이 심볼 삭제</button>';
       document.getElementById('ps-label').addEventListener('input', e=>{ s.label=e.target.value; s.autoLabel=false; Renderer.render(); });
       document.getElementById('ps-label').addEventListener('change', ()=> History.commit());
-      document.getElementById('ps-rot').addEventListener('input', e=>{ s.rotation=parseFloat(e.target.value); Renderer.render(); });
-      document.getElementById('ps-rot').addEventListener('change', ()=> History.commit());
+      const psRot = document.getElementById('ps-rot'), psRotNum = document.getElementById('ps-rot-num');
+      psRot.addEventListener('input', e=>{ s.rotation=parseFloat(e.target.value); psRotNum.value = e.target.value; Renderer.render(); });
+      psRot.addEventListener('change', ()=> History.commit());
+      psRotNum.addEventListener('input', e=>{
+        let v = parseFloat(e.target.value); if(!isFinite(v)) return;
+        v = ((v%360)+360)%360;
+        s.rotation = v; psRot.value = v; Renderer.render();
+      });
+      psRotNum.addEventListener('change', ()=> History.commit());
       document.getElementById('ps-scale').addEventListener('input', e=>{ s.scale=parseFloat(e.target.value); Renderer.render(); });
       document.getElementById('ps-scale').addEventListener('change', ()=> History.commit());
       document.getElementById('ps-del').addEventListener('click', deleteSelected);
