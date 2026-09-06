@@ -97,6 +97,32 @@
   .sym-item canvas{pointer-events:none;}
   .sym-item span{font-size:10.5px; color:var(--text); text-align:center; line-height:1.2;}
 
+  .sym-item.has-variants{ position:relative; }
+  .sym-item.has-variants::after{
+    content:''; position:absolute; top:4px; right:4px; width:6px; height:6px;
+    border-radius:50%; background:var(--accent);
+  }
+  .variant-menu{
+    position:fixed; z-index:200; display:flex; gap:4px; padding:6px;
+    background:var(--panel); border:1px solid var(--border); border-radius:8px;
+    box-shadow:0 8px 24px rgba(0,0,0,.22);
+  }
+  .variant-menu-item{
+    display:flex; flex-direction:column; align-items:center; gap:2px; min-width:56px;
+    padding:6px 8px; border-radius:6px; cursor:pointer;
+  }
+  .variant-menu-item:hover{ background:var(--accent-dim); }
+  .variant-menu-item canvas{ pointer-events:none; }
+  .variant-menu-item span{ font-size:10.5px; color:var(--text); white-space:nowrap; }
+
+  .variant-switch-row{ display:flex; gap:4px; }
+  .variant-switch-btn{
+    flex:1; padding:5px 4px; font-size:11px; border:1px solid var(--border); border-radius:5px;
+    background:var(--subtle-bg); color:var(--text);
+  }
+  .variant-switch-btn:hover{ border-color:var(--accent); }
+  .variant-switch-btn.active{ background:var(--accent-dim); border-color:var(--accent); color:var(--accent); font-weight:600; }
+
   details.sym-folder{ margin-top:8px; border:1px solid var(--border); border-radius:6px; padding:5px 6px 7px; background:var(--subtle-bg); }
   details.sym-folder summary{ cursor:pointer; font-size:11.5px; font-weight:600; color:var(--text-dim); padding:4px 2px; list-style:none; }
   details.sym-folder summary::-webkit-details-marker{ display:none; }
@@ -194,6 +220,10 @@
     @page{ margin:8mm; }
   }
 </style>
+<!-- Vercel Web Analytics: same-origin 경로라 로컬(file://)/오프라인 환경에서는 조용히 404로
+     실패할 뿐 기능에 영향 없음. npm 설치나 빌드 없이 정적 사이트에 붙이는 공식 방법. -->
+<script>window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };</script>
+<script defer src="/_vercel/insights/script.js"></script>
 </head>
 <body>
 
@@ -236,8 +266,9 @@
       <button class="tool-btn" data-arrow="photo" id="tool-arrow-photo"><span class="ic">📷</span>촬영방향 (P)</button>
       <div class="checkrow" style="margin-top:6px;">
         <input type="checkbox" id="chk-grid-snap" checked>
-        <label for="chk-grid-snap">격자 스냅</label>
+        <label for="chk-grid-snap">격자 스냅 (벽/도로/배선 그리기)</label>
       </div>
+      <div class="ext-hint" style="margin:-2px 0 6px;">에셋(가구 등)은 자유롭게 이동됩니다. 격자에 맞추려면 <b>Alt</b>를 누른 채 드래그하세요. 선택 후 방향키로도 미세 이동할 수 있습니다.</div>
       <div class="checkrow">
         <input type="checkbox" id="chk-angle-snap" checked>
         <label for="chk-angle-snap">각도 스냅 (0/45/90°) — 끄면 자유 그리기</label>
@@ -285,6 +316,7 @@
     </div>
     <div class="panel-section">
       <h3>전기 / 가전</h3>
+      <div class="ext-hint" style="margin-bottom:6px;">점(●) 표시된 항목은 꾹 누르면 세부 종류(예: 에어컨 설치 형태)를 선택할 수 있습니다.</div>
       <div id="palette-elec"></div>
     </div>
     <div class="panel-section">
@@ -402,7 +434,7 @@
 /* =====================================================================
    1. CONFIG
    ===================================================================== */
-const APP_VERSION = '1.2';
+const APP_VERSION = '1.3';
 
 const CONFIG = {
   PX_PER_M: 60,
@@ -473,7 +505,8 @@ const SymbolLibrary = (function(){
       subcategory: opts.subcategory || null,
       numbered: !!opts.numbered,
       snapToWall: !!opts.snapToWall,
-      shortName: opts.shortName || name
+      shortName: opts.shortName || name,
+      hidden: !!opts.hidden
     };
   }
 
@@ -507,6 +540,7 @@ const SymbolLibrary = (function(){
       numbered: !!opts.numbered,
       snapToWall: !!opts.snapToWall,
       shortName: opts.shortName || name,
+      hidden: !!opts.hidden,
       draw(ctx, s){
         shapes.forEach(sh=>{
           ctx.save();
@@ -905,6 +939,38 @@ const SymbolLibrary = (function(){
     {type:'rect', x:-0.14,y:-0.22,w:0.10,h:0.10, r:0.01, stroke:'#334155', fill:'#cbd5e1', lw:1.2},
     {type:'rect', x:0.04,y:-0.22,w:0.10,h:0.10, r:0.01, stroke:'#334155', fill:'#cbd5e1', lw:1.2}
   ], AP);
+  // 가스보일러 (벽걸이형, 귀뚜라미 보일러류의 전형적인 외형 참조)
+  regShape('appl_gasboiler','가스보일러','전기/가전',34,[
+    {type:'rect', x:-0.24,y:-0.16,w:0.48,h:0.32, r:0.03, stroke:'#334155', fill:'#f8fafc', lw:1.8},
+    {type:'rect', x:-0.16,y:-0.08,w:0.20,h:0.14, r:0.01, stroke:'#334155', fill:'#e2e8f0', lw:1.2},
+    {type:'circle', cx:0.14,cy:0.02,r:0.05, stroke:'#334155', fill:'#cbd5e1', lw:1.2}
+  ], AP);
+  // 에어컨 세부 종류 (기본 'appl_aircon'=벽걸이는 위에 이미 등록됨). 팔레트에는 노출하지 않고
+  // (hidden:true) 팔레트에서 길게 누르기(꾹 클릭) 또는 속성 패널의 "세부 종류" 버튼으로만 선택함.
+  // SYMBOL_VARIANT_GROUPS 참고.
+  regShape('appl_aircon_ceiling','에어컨(천장형)','전기/가전',34,[
+    {type:'rect', x:-0.24,y:-0.24,w:0.48,h:0.48, r:0.04, stroke:'#334155', fill:'#f1f5f9', lw:1.8},
+    {type:'line', x1:-0.24,y1:0,x2:0.24,y2:0, stroke:'#94a3b8', lw:1.2},
+    {type:'line', x1:0,y1:-0.24,x2:0,y2:0.24, stroke:'#94a3b8', lw:1.2},
+    {type:'circle', cx:0,cy:0,r:0.05, stroke:'#334155', fill:'#e2e8f0', lw:1.2}
+  ], {subcategory:'가전제품', color:'#334155', hidden:true});
+  regShape('appl_aircon_stand','에어컨(스탠드)','전기/가전',34,[
+    {type:'rect', x:-0.14,y:-0.30,w:0.28,h:0.60, r:0.05, stroke:'#334155', fill:'#f1f5f9', lw:1.8},
+    {type:'line', x1:-0.10,y1:-0.18,x2:0.10,y2:-0.18, stroke:'#94a3b8', lw:1.2},
+    {type:'line', x1:-0.10,y1:-0.10,x2:0.10,y2:-0.10, stroke:'#94a3b8', lw:1.2}
+  ], {subcategory:'가전제품', color:'#334155', hidden:true});
+
+  /* ---- 욕실 프리셋 (독립 카테고리) ---- */
+  regShape('bath_tub','욕조','욕실',44,[
+    {type:'rect', x:-0.42,y:-0.22,w:0.84,h:0.44, r:0.20, stroke:'#0284c7', fill:'#f0f9ff', lw:1.8},
+    {type:'rect', x:-0.34,y:-0.16,w:0.68,h:0.32, r:0.16, stroke:'#7dd3fc', lw:1.2},
+    {type:'circle', cx:0.30,cy:0, r:0.03, stroke:'#0284c7', fill:'#0284c7', lw:1}
+  ], {color:'#0284c7'});
+  regShape('bath_toilet','변기','욕실',30,[
+    {type:'rect', x:-0.26,y:-0.40,w:0.52,h:0.16, r:0.03, stroke:'#0284c7', fill:'#f0f9ff', lw:1.6},
+    {type:'circle', cx:0,cy:0.05,r:0.24, stroke:'#0284c7', fill:'#f0f9ff', lw:1.6},
+    {type:'circle', cx:0,cy:0.05,r:0.14, stroke:'#7dd3fc', lw:1.2}
+  ], {color:'#0284c7'});
 
   /* ---- 가구 프리셋 (가구 카테고리, 접기/펼치기) ---- */
   const FN = {subcategory:'가구 프리셋', color:'#334155'};
@@ -941,6 +1007,11 @@ const SymbolLibrary = (function(){
   regShape('furn_tvstand','TV장','가구',34,[
     {type:'rect', x:-0.34,y:-0.08,w:0.68,h:0.16, stroke:'#334155', fill:'#e2e8f0', lw:1.8}
   ], FN);
+  regShape('furn_vanity','화장대','가구',34,[
+    {type:'rect', x:-0.26,y:-0.14,w:0.52,h:0.28, r:0.02, stroke:'#334155', fill:'#e2e8f0', lw:1.8},
+    {type:'line', x1:-0.26,y1:-0.14,x2:0.26,y2:-0.14, stroke:'#334155', lw:2.4},
+    {type:'circle', cx:0,cy:0.22,r:0.10, stroke:'#334155', fill:'#f8fafc', lw:1.4}
+  ], FN);
 
   function registerPack(pack){
     if(!pack || !Array.isArray(pack.symbols)) throw new Error('올바르지 않은 라이브러리 형식입니다 (symbols 배열이 필요합니다)');
@@ -969,6 +1040,23 @@ const SymbolLibrary = (function(){
     registerPack
   };
 })();
+
+// 팔레트에 하나로 묶여 보이고(꾹 클릭으로 세부 종류 선택) 배치 후에도
+// 속성 패널에서 서로 바꿔 끼울 수 있는 심볼 묶음. 키는 팔레트에 보이는 대표 defId.
+const SYMBOL_VARIANT_GROUPS = {
+  appl_aircon: [
+    {defId:'appl_aircon', label:'벽걸이'},
+    {defId:'appl_aircon_ceiling', label:'천장형'},
+    {defId:'appl_aircon_stand', label:'스탠드'}
+  ]
+};
+function findSymbolVariantGroup(defId){
+  for(const key in SYMBOL_VARIANT_GROUPS){
+    const g = SYMBOL_VARIANT_GROUPS[key];
+    if(g.some(v=>v.defId===defId)) return g;
+  }
+  return null;
+}
 
 /* =====================================================================
    5. STATE
@@ -1052,6 +1140,18 @@ const AppState = {
       if(s.autoLabel===undefined) s.autoLabel = !s.label;
       if(!s.seq) s.seq = this.nextSeq();
       maxSeq = Math.max(maxSeq, s.seq);
+      // 가로/세로 개별 배율(엣지 드래그로 한쪽 축만 늘이는 기능) — 옛 저장 파일은
+      // 균일 배율(scale)만 있으므로 그 값을 그대로 양쪽 축 기본값으로 사용
+      if(s.scaleX==null) s.scaleX = s.scale||1;
+      if(s.scaleY==null) s.scaleY = s.scale||1;
+    });
+    // 촬영방향 화살표도 마찬가지로 seq/autoLabel이 없는 옛 저장 파일을 보정
+    this.arrows.forEach(a=>{
+      if(a.kind!=='photo') return;
+      if(a.autoLabel===undefined) a.autoLabel = !a.label;
+      if(!a.seq) a.seq = this.nextSeq();
+      if(a.spreadDeg==null) a.spreadDeg = 70;
+      maxSeq = Math.max(maxSeq, a.seq);
     });
     this._seqCounter = Math.max(obj.seqCounter||1, maxSeq+1);
     this.wireCounter = obj.wireCounter || this.wires.length;
@@ -1061,6 +1161,7 @@ const AppState = {
 
     const numberedDefIds = new Set(SymbolLibrary.list().filter(d=>d.numbered).map(d=>d.id));
     numberedDefIds.forEach(defId=> renumberSymbolsOfType(defId));
+    renumberArrowsOfKind('photo');
 
     this.selected = null;
   }
@@ -1134,6 +1235,25 @@ const Geo = {
     const proj = { x: a.x + t*(b.x-a.x), y: a.y + t*(b.y-a.y) };
     return this.dist(p, proj);
   },
+  pointInTriangle(p, a, b, c){
+    const d1 = (p.x-b.x)*(a.y-b.y)-(a.x-b.x)*(p.y-b.y);
+    const d2 = (p.x-c.x)*(b.y-c.y)-(b.x-c.x)*(p.y-c.y);
+    const d3 = (p.x-a.x)*(c.y-a.y)-(c.x-a.x)*(p.y-a.y);
+    const hasNeg = (d1<0)||(d2<0)||(d3<0);
+    const hasPos = (d1>0)||(d2>0)||(d3>0);
+    return !(hasNeg && hasPos);
+  },
+  // 촬영방향 "시야 콘"의 좌우 두 변 끝점(p1이 촬영 위치, p2 방향으로 35도씩 벌어짐)
+  visionConeEdges(p1, p2, spreadDeg){
+    spreadDeg = spreadDeg==null ? 35 : spreadDeg;
+    const len = Math.max(1, this.dist(p1,p2));
+    const ang = Math.atan2(p2.y-p1.y, p2.x-p1.x);
+    const spread = spreadDeg*Math.PI/180;
+    return {
+      e1: {x:p1.x+Math.cos(ang-spread)*len, y:p1.y+Math.sin(ang-spread)*len},
+      e2: {x:p1.x+Math.cos(ang+spread)*len, y:p1.y+Math.sin(ang+spread)*len}
+    };
+  },
   /* ---- 3점 아크(곡면 벽) 지원용 원호 계산 ---- */
   circumcircle(p1,p2,p3){
     const ax=p1.x, ay=p1.y, bx=p2.x, by=p2.y, cx=p3.x, cy=p3.y;
@@ -1185,6 +1305,34 @@ function renumberSymbolsOfType(defId){
   items.forEach((s,i)=>{
     if(s.autoLabel!==false) s.label = (def.shortName||def.name)+' '+(i+1);
   });
+}
+// 촬영방향은 여러 개 찍을 때 부채꼴 안에 번호가 보여야 도면에서 서로 구분하기 쉬움 —
+// 증거위치/촬영위치 심볼과 동일하게 배치 순서(seq)대로 자동 번호를 매김
+function renumberArrowsOfKind(kind){
+  const label = kind==='photo' ? '촬영방향' : '연소확대방향';
+  const items = AppState.arrows.filter(a=>a.kind===kind).sort((a,b)=>(a.seq||0)-(b.seq||0));
+  items.forEach((a,i)=>{
+    if(a.autoLabel!==false) a.label = label+(i+1);
+  });
+}
+function createArrow(kind, x1, y1, x2, y2){
+  const arrow = { id:AppState.genId(), kind, x1, y1, x2, y2 };
+  if(kind==='photo'){ arrow.label=''; arrow.autoLabel=true; arrow.seq=AppState.nextSeq(); arrow.spreadDeg=70; }
+  AppState.arrows.push(arrow);
+  if(kind==='photo') renumberArrowsOfKind('photo');
+  return arrow;
+}
+// 심볼의 가로/세로 개별 배율(scaleX/scaleY) 기준 4변 중앙 핸들의 월드 좌표 —
+// 회전된 상태에서도 핸들이 실제 도형 가장자리에 오도록 로컬 좌표를 심볼 회전만큼 돌려 배치
+function symbolEdgeHandles(sym, def){
+  const scaleX = sym.scaleX!=null ? sym.scaleX : (sym.scale||1);
+  const scaleY = sym.scaleY!=null ? sym.scaleY : (sym.scale||1);
+  const halfW = def.defaultSize/2*scaleX;
+  const halfH = def.defaultSize/2*scaleY;
+  const rad = (sym.rotation||0)*Math.PI/180;
+  const cos = Math.cos(rad), sin = Math.sin(rad);
+  const toWorld = (lx,ly)=>({x:sym.x+lx*cos-ly*sin, y:sym.y+lx*sin+ly*cos});
+  return { halfW, halfH, W:toWorld(-halfW,0), E:toWorld(halfW,0), N:toWorld(0,-halfH), S:toWorld(0,halfH) };
 }
 function trySnapToWall(pt, thresholdWorld){
   let best=null, bestD=Infinity;
@@ -1507,6 +1655,36 @@ const Renderer = {
     ctx.restore();
   },
 
+  // 촬영방향은 배선(파선)과 시각적으로 헷갈린다는 피드백을 반영해 화살표 대신
+  // 카메라 시야각을 나타내는 "시야 콘"으로 표현함 (옛 게임의 시야 표시처럼, 기준선
+  // 자체는 그리지 않고 그 기준선을 중심으로 좌우 약 35도씩 벌어진 두 변만 그림).
+  _strokeVisionCone(ctx,p1,p2,color,label,spreadDeg){
+    const {e1,e2} = Geo.visionConeEdges(p1,p2,(spreadDeg!=null?spreadDeg:70)/2);
+    const baseAlpha = ctx.globalAlpha;
+    ctx.save();
+    ctx.fillStyle = color; ctx.globalAlpha = baseAlpha*0.16;
+    ctx.beginPath(); ctx.moveTo(p1.x,p1.y); ctx.lineTo(e1.x,e1.y); ctx.lineTo(e2.x,e2.y); ctx.closePath(); ctx.fill();
+    ctx.globalAlpha = baseAlpha;
+    ctx.strokeStyle = color; ctx.lineWidth = 2.2;
+    ctx.beginPath(); ctx.moveTo(p1.x,p1.y); ctx.lineTo(e1.x,e1.y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(p1.x,p1.y); ctx.lineTo(e2.x,e2.y); ctx.stroke();
+    ctx.fillStyle = color;
+    ctx.beginPath(); ctx.arc(p1.x,p1.y,4,0,Math.PI*2); ctx.fill();
+    if(label){
+      // 부채꼴 안쪽(촬영 위치→방향의 55% 지점, 즉 이등분선 위)에 번호 라벨 표시
+      const lx = p1.x+(p2.x-p1.x)*0.55, ly = p1.y+(p2.y-p1.y)*0.55;
+      ctx.font = 'bold 11px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      const tw = ctx.measureText(label).width;
+      ctx.globalAlpha = baseAlpha;
+      ctx.fillStyle = 'rgba(255,255,255,0.92)';
+      ctx.fillRect(lx-tw/2-4, ly-9, tw+8, 18);
+      ctx.strokeStyle = color; ctx.lineWidth=1; ctx.strokeRect(lx-tw/2-4, ly-9, tw+8, 18);
+      ctx.fillStyle = color;
+      ctx.fillText(label, lx, ly);
+    }
+    ctx.restore();
+  },
+
   drawArrows(ctx){
     const P = Theme.colors();
     AppState.arrows.forEach(a=>{
@@ -1514,7 +1692,8 @@ const Renderer = {
       const p1=this.worldToScreen({x:a.x1,y:a.y1}), p2=this.worldToScreen({x:a.x2,y:a.y2});
       const baseColor = a.kind==='spread' ? P.arrowSpread : P.arrowPhoto;
       const col = isSel ? P.wallSelected : baseColor;
-      this._strokeArrow(ctx,p1,p2,col, a.kind==='photo');
+      if(a.kind==='photo') this._strokeVisionCone(ctx,p1,p2,col,a.label,a.spreadDeg);
+      else this._strokeArrow(ctx,p1,p2,col,false);
       if(isSel){
         [p1,p2].forEach(sp=>{
           ctx.save(); ctx.fillStyle=P.handleFill; ctx.strokeStyle=P.handle; ctx.lineWidth=2;
@@ -1539,7 +1718,8 @@ const Renderer = {
     const p1=this.worldToScreen({x:x1,y:y1}), p2=this.worldToScreen({x:x2,y:y2});
     const col = kind==='spread' ? P.arrowSpread : P.arrowPhoto;
     ctx.save(); ctx.globalAlpha=0.6;
-    this._strokeArrow(ctx,p1,p2,col, kind==='photo');
+    if(kind==='photo') this._strokeVisionCone(ctx,p1,p2,col);
+    else this._strokeArrow(ctx,p1,p2,col,false);
     ctx.restore();
   },
 
@@ -1599,27 +1779,40 @@ const Renderer = {
       if(!def) return;
       const sp = this.worldToScreen({x:sym.x,y:sym.y});
       const isSel = AppState.selected && AppState.selected.type==='symbol' && AppState.selected.id===sym.id;
+      const scaleX = sym.scaleX!=null ? sym.scaleX : (sym.scale||1);
+      const scaleY = sym.scaleY!=null ? sym.scaleY : (sym.scale||1);
       ctx.save();
       ctx.translate(sp.x, sp.y);
       ctx.rotate((sym.rotation||0)*Math.PI/180);
-      const sc = (sym.scale||1) * AppState.view.zoom;
-      ctx.scale(sc, sc);
+      ctx.scale(scaleX*AppState.view.zoom, scaleY*AppState.view.zoom);
       def.draw(ctx, def.defaultSize);
       ctx.restore();
 
       if(isSel){
+        const handles = symbolEdgeHandles(sym, def);
         ctx.save();
-        const r = def.defaultSize/2*(sym.scale||1)*AppState.view.zoom + 6;
+        ctx.translate(sp.x, sp.y);
+        ctx.rotate((sym.rotation||0)*Math.PI/180);
+        const hw = handles.halfW*AppState.view.zoom, hh = handles.halfH*AppState.view.zoom;
         ctx.strokeStyle = P.wallSelected; ctx.lineWidth=1.4; ctx.setLineDash([4,3]);
-        ctx.beginPath(); ctx.arc(sp.x,sp.y,r,0,Math.PI*2); ctx.stroke();
+        ctx.strokeRect(-hw-4, -hh-4, hw*2+8, hh*2+8);
         ctx.restore();
+        ctx.setLineDash([]);
+        // 가장자리 중앙 핸들 4개 — 좌/우를 잡으면 가로만, 위/아래를 잡으면 세로만 늘어남
+        ['W','E','N','S'].forEach(k=>{
+          const hp = this.worldToScreen(handles[k]);
+          ctx.save();
+          ctx.fillStyle = P.handleFill; ctx.strokeStyle = P.handle; ctx.lineWidth=1.5;
+          ctx.fillRect(hp.x-4, hp.y-4, 8, 8); ctx.strokeRect(hp.x-4, hp.y-4, 8, 8);
+          ctx.restore();
+        });
       }
 
       const label = sym.label || def.name;
       ctx.save();
       ctx.font = '10.5px sans-serif'; ctx.textAlign='center';
       const tw = ctx.measureText(label).width;
-      const ly = sp.y + def.defaultSize/2*(sym.scale||1)*AppState.view.zoom + 12;
+      const ly = sp.y + def.defaultSize/2*scaleY*AppState.view.zoom + 12;
       ctx.fillStyle = P.labelBg;
       ctx.fillRect(sp.x-tw/2-3, ly-10, tw+6, 13);
       ctx.fillStyle = P.labelText;
@@ -1805,20 +1998,19 @@ const Renderer = {
     const scaleUp = 2;
     const contentW = (b.maxX-b.minX)*scaleUp, contentH = (b.maxY-b.minY)*scaleUp;
 
-    const usedDefs = new Set();
-    AppState.symbols.forEach(sym=>{ if(SymbolLibrary.get(sym.defId)) usedDefs.add(sym.defId); });
+    // 심볼(가구/가전 등)은 도면 위에 아이콘과 함께 이름이 항상 같이 표시되므로
+    // 범례에 다시 나열하지 않음 — 화살표/배선/도로처럼 도면에 이름표가 붙지 않는
+    // 항목만 범례에 싣는다. (과거에는 배치된 모든 심볼 종류를 범례에 아이콘+이름으로
+    // 나열했는데, 심볼마다 실제 크기가 제각각(예: 자동차)이라 옆의 캡션 글자와
+    // 겹쳐 보이는 문제가 있었음 — 이 목록 자체를 없애 근본적으로 해결)
     const usedArrowKinds = new Set(AppState.arrows.map(a=>a.kind));
     const hasWires = AppState.wires.length>0;
     const hasRoads = AppState.roads.some(r=>r.kind!=='unpaved');
     const hasUnpavedRoads = AppState.roads.some(r=>r.kind==='unpaved');
 
     const legendEntries = [];
-    usedDefs.forEach(defId=>{
-      const def = SymbolLibrary.get(defId);
-      legendEntries.push({ label:def.name, draw:(ctx)=>{ ctx.scale(0.5,0.5); def.draw(ctx, def.defaultSize, false); } });
-    });
     if(usedArrowKinds.has('spread')) legendEntries.push({ label:'연소확대방향', draw:(ctx)=>{ this._strokeArrow(ctx,{x:-14,y:0},{x:14,y:0}, P.arrowSpread, false, 8); } });
-    if(usedArrowKinds.has('photo')) legendEntries.push({ label:'촬영방향', draw:(ctx)=>{ this._strokeArrow(ctx,{x:-14,y:0},{x:14,y:0}, P.arrowPhoto, true, 8); } });
+    if(usedArrowKinds.has('photo')) legendEntries.push({ label:'촬영방향', draw:(ctx)=>{ this._strokeVisionCone(ctx,{x:-11,y:0},{x:9,y:0}, P.arrowPhoto); } });
     if(hasWires) legendEntries.push({ label:'배선 경로', draw:(ctx)=>{
       ctx.strokeStyle=P.wire; ctx.lineWidth=3; ctx.setLineDash([6,4]);
       ctx.beginPath(); ctx.moveTo(-14,0); ctx.lineTo(14,0); ctx.stroke(); ctx.setLineDash([]);
@@ -1995,21 +2187,24 @@ const Renderer = {
     AppState.arrows.forEach(a=>{
       const p1=w2s({x:a.x1,y:a.y1}), p2=w2s({x:a.x2,y:a.y2});
       const col = a.kind==='spread' ? P.arrowSpread : P.arrowPhoto;
-      this._strokeArrow(ctx,p1,p2,col, a.kind==='photo', 20);
+      if(a.kind==='photo') this._strokeVisionCone(ctx,p1,p2,col,a.label,a.spreadDeg);
+      else this._strokeArrow(ctx,p1,p2,col,false,20);
     });
 
     // symbols
     AppState.symbols.forEach(sym=>{
       const def = SymbolLibrary.get(sym.defId); if(!def) return;
       const sp = w2s({x:sym.x,y:sym.y});
+      const scaleX = sym.scaleX!=null ? sym.scaleX : (sym.scale||1);
+      const scaleY = sym.scaleY!=null ? sym.scaleY : (sym.scale||1);
       ctx.save(); ctx.translate(sp.x,sp.y); ctx.rotate((sym.rotation||0)*Math.PI/180);
-      const sc=(sym.scale||1)*zoom; ctx.scale(sc,sc);
+      ctx.scale(scaleX*zoom, scaleY*zoom);
       def.draw(ctx, def.defaultSize, false);
       ctx.restore();
       const label = sym.label || def.name;
       ctx.save(); ctx.font='18px sans-serif'; ctx.textAlign='center';
       const tw=ctx.measureText(label).width;
-      const ly = sp.y + def.defaultSize/2*(sym.scale||1)*zoom + 22;
+      const ly = sp.y + def.defaultSize/2*scaleY*zoom + 22;
       ctx.fillStyle='rgba(255,255,255,0.85)'; ctx.fillRect(sp.x-tw/2-4,ly-16,tw+8,20);
       ctx.fillStyle='#374151'; ctx.fillText(label, sp.x, ly);
       ctx.restore();
@@ -2058,6 +2253,9 @@ const Renderer = {
     ctx.font='10px sans-serif'; ctx.fillStyle='#9ca3af'; ctx.textAlign='right';
     ctx.fillText('작성도구 v'+APP_VERSION, cw*0.62-8, legendH-8);
 
+    // 위에서 textAlign을 'right'로 바꿔둔 채였던 것을 되돌리지 않아서 아래 범례 글자가
+    // 아이콘 쪽으로 거꾸로(오른쪽 정렬) 그려져 겹쳐 보이던 버그 — 명시적으로 다시 'left'로.
+    ctx.textAlign='left';
     ctx.font='bold 13px sans-serif'; ctx.fillStyle='#1f2430';
     ctx.fillText('범례', cw*0.62+14, 20);
     ctx.font='12px sans-serif';
@@ -2065,10 +2263,10 @@ const Renderer = {
     legendEntries.forEach((entry,i)=>{
       const colW = (cw*0.38-28)/2;
       const cx = lx + (i%2)*colW, cy = ly2 + Math.floor(i/2)*24;
-      ctx.save(); ctx.translate(cx+10, cy);
+      ctx.save(); ctx.translate(cx+12, cy);
       entry.draw(ctx);
       ctx.restore();
-      ctx.fillStyle='#374151'; ctx.fillText(entry.label, cx+24, cy+4);
+      ctx.fillStyle='#374151'; ctx.fillText(entry.label, cx+30, cy+4);
     });
     ctx.restore();
 
@@ -2233,11 +2431,14 @@ function findWallAt(worldPt){
 }
 function findSymbolAt(worldPt){
   let best=null, bestD=Infinity;
+  const margin = 8/AppState.view.zoom;
   AppState.symbols.forEach(s=>{
     const def = SymbolLibrary.get(s.defId); if(!def) return;
-    const r = def.defaultSize/2*(s.scale||1) + 8/AppState.view.zoom;
+    const handles = symbolEdgeHandles(s, def);
+    const rad = (s.rotation||0)*Math.PI/180;
+    if(!pointInRotatedRect(worldPt, s.x, s.y, handles.halfW+margin, handles.halfH+margin, rad)) return;
     const d = Geo.dist(worldPt, {x:s.x,y:s.y});
-    if(d<r && d<bestD){ bestD=d; best=s; }
+    if(d<bestD){ bestD=d; best=s; }
   });
   return best;
 }
@@ -2268,6 +2469,14 @@ function findArrowAt(worldPt){
   const threshold = 10/AppState.view.zoom;
   let best=null,bestD=Infinity;
   AppState.arrows.forEach(a=>{
+    if(a.kind==='photo'){
+      // 촬영방향은 기준선이 화면에 보이지 않으므로, 눈에 보이는 부채꼴(시야 콘) 안쪽
+      // 어디를 클릭해도 선택되도록 판정한다 (기준선 근처만 클릭 가능하면 찾기 어려움)
+      const p1={x:a.x1,y:a.y1}, p2={x:a.x2,y:a.y2};
+      const {e1,e2} = Geo.visionConeEdges(p1,p2,(a.spreadDeg!=null?a.spreadDeg:70)/2);
+      if(Geo.pointInTriangle(worldPt, p1, e1, e2)){ bestD=0; best=a; }
+      return;
+    }
     const d = Geo.distToSegment(worldPt, {x:a.x1,y:a.y1}, {x:a.x2,y:a.y2});
     if(d<threshold && d<bestD){ bestD=d; best=a; }
   });
@@ -2280,6 +2489,21 @@ function findWallHandle(worldPt){
   const threshold = 10/AppState.view.zoom;
   if(Geo.dist(worldPt,{x:w.x1,y:w.y1}) < threshold) return {wall:w, which:1};
   if(Geo.dist(worldPt,{x:w.x2,y:w.y2}) < threshold) return {wall:w, which:2};
+  return null;
+}
+// 이미 선택된 심볼의 가로/세로 가장자리 핸들 하나를 잡았는지 검사 —
+// 좌/우 핸들은 가로(scaleX)만, 위/아래 핸들은 세로(scaleY)만 늘이도록 축을 구분해서 반환
+function findSymbolEdgeHandle(worldPt){
+  const sel = AppState.selected;
+  if(!sel || sel.type!=='symbol') return null;
+  const s = AppState.symbols.find(x=>x.id===sel.id); if(!s) return null;
+  const def = SymbolLibrary.get(s.defId); if(!def) return null;
+  const handles = symbolEdgeHandles(s, def);
+  const threshold = 10/AppState.view.zoom;
+  if(Geo.dist(worldPt, handles.W) < threshold) return {symbol:s, axis:'x'};
+  if(Geo.dist(worldPt, handles.E) < threshold) return {symbol:s, axis:'x'};
+  if(Geo.dist(worldPt, handles.N) < threshold) return {symbol:s, axis:'y'};
+  if(Geo.dist(worldPt, handles.S) < threshold) return {symbol:s, axis:'y'};
   return null;
 }
 function findMachineHandle(worldPt){
@@ -2337,7 +2561,7 @@ function createSymbolAt(defId, pt){
     const snap = trySnapToWall(pt, 60/AppState.view.zoom);
     if(snap){ x=snap.point.x; y=snap.point.y; rotation=snap.angleDeg; }
   }
-  const sym = { id:AppState.genId(), defId, x, y, rotation, scale:1, label:'', autoLabel:true, seq:AppState.nextSeq() };
+  const sym = { id:AppState.genId(), defId, x, y, rotation, scale:1, scaleX:1, scaleY:1, label:'', autoLabel:true, seq:AppState.nextSeq() };
   AppState.symbols.push(sym);
   if(def.numbered) renumberSymbolsOfType(defId);
   History.commit();
@@ -2455,8 +2679,7 @@ function onPointerDown(e){
       if(document.getElementById('chk-angle-snap').checked) pt = Geo.snapAngleFrom({x:ic.x1,y:ic.y1}, pt);
       const len = Geo.dist({x:ic.x1,y:ic.y1}, pt);
       if(len > 8){
-        const arrow = { id:AppState.genId(), kind:ic.kind, x1:ic.x1, y1:ic.y1, x2:pt.x, y2:pt.y };
-        AppState.arrows.push(arrow);
+        const arrow = createArrow(ic.kind, ic.x1, ic.y1, pt.x, pt.y);
         AppState.selected = {type:'arrow', id:arrow.id};
         History.commit();
         UI.renderPropertyPanel();
@@ -2496,6 +2719,11 @@ function onPointerDown(e){
     const machineHandle = findMachineHandle(world);
     if(machineHandle){
       ToolManager.dragState = { type:'resize-machine', machineId:machineHandle.machine.id, which:machineHandle.which };
+      return;
+    }
+    const symEdge = findSymbolEdgeHandle(world);
+    if(symEdge){
+      ToolManager.dragState = { type:'scale-symbol-edge', id:symEdge.symbol.id, axis:symEdge.axis };
       return;
     }
     const sym = findSymbolAt(world);
@@ -2632,10 +2860,32 @@ function onPointerMove(e){
     if(def && def.snapToWall){
       const snap = trySnapToWall({x:nx,y:ny}, 60/AppState.view.zoom);
       if(snap){ nx=snap.point.x; ny=snap.point.y; sym.rotation=snap.angleDeg; }
-    } else if(document.getElementById('chk-grid-snap').checked){
+    } else if(e.altKey && document.getElementById('chk-grid-snap').checked){
+      // 심볼(가구 등) 이동은 기본적으로 격자에 구애받지 않는 자유(소수점) 위치로 옮겨져
+      // 더 자연스럽게 배치됨. 벽 등에 맞춰 정렬하고 싶을 때만 Alt를 누른 채 드래그하면
+      // 격자 스냅이 적용됨. (벽/도로/배선 그리기는 기존과 동일하게 항상 체크박스를 따름)
       const sp = Geo.snapToGrid({x:nx,y:ny}); nx=sp.x; ny=sp.y;
     }
     sym.x=nx; sym.y=ny; Renderer.render(); return;
+  }
+  if(ds.type==='scale-symbol-edge'){
+    const sym = AppState.symbols.find(s=>s.id===ds.id); if(!sym) return;
+    const def = SymbolLibrary.get(sym.defId); if(!def) return;
+    // 마우스의 현재 위치를 심볼의 회전을 거꾸로 되돌린 로컬 좌표로 바꾼 뒤, 그 축의
+    // 절반 길이를 새 배율로 사용 — 중심은 그대로 두고 잡은 변 쪽으로만(그 반대쪽도
+    // 대칭으로) 늘어나며, 반대 축 배율은 건드리지 않는다
+    const dx = world.x-sym.x, dy = world.y-sym.y;
+    const rad = (sym.rotation||0)*Math.PI/180;
+    const cos = Math.cos(-rad), sin = Math.sin(-rad);
+    const localX = dx*cos - dy*sin, localY = dx*sin + dy*cos;
+    if(ds.axis==='x'){
+      const newScaleX = Math.max(0.1, Math.min(6, Math.abs(localX)*2/def.defaultSize));
+      sym.scaleX = newScaleX;
+    } else {
+      const newScaleY = Math.max(0.1, Math.min(6, Math.abs(localY)*2/def.defaultSize));
+      sym.scaleY = newScaleY;
+    }
+    Renderer.render(); return;
   }
   if(ds.type==='move-wall'){
     const wall = AppState.walls.find(w=>w.id===ds.id); if(!wall) return;
@@ -2717,8 +2967,7 @@ function onPointerUp(e){
       if(ds.moved){
         const len = Geo.dist({x:ds.x1,y:ds.y1},{x:ds.x2,y:ds.y2});
         if(len > 8){
-          const arrow = { id:AppState.genId(), kind:ds.kind, x1:ds.x1,y1:ds.y1,x2:ds.x2,y2:ds.y2 };
-          AppState.arrows.push(arrow);
+          const arrow = createArrow(ds.kind, ds.x1, ds.y1, ds.x2, ds.y2);
           AppState.selected = {type:'arrow', id:arrow.id};
           History.commit();
           UI.renderPropertyPanel();
@@ -2802,6 +3051,22 @@ function onKeyDown(e){
     deleteSelected();
     return;
   }
+  if((e.key==='ArrowUp'||e.key==='ArrowDown'||e.key==='ArrowLeft'||e.key==='ArrowRight') && AppState.selected && AppState.selected.type==='symbol'){
+    const s = AppState.symbols.find(x=>x.id===AppState.selected.id);
+    if(s){
+      e.preventDefault();
+      // 격자 스냅 없이 자유(소수점) 위치로 미세 이동 — 기본 1px(~1.7cm), Shift로 10px(~17cm)
+      const step = e.shiftKey ? 10 : 1;
+      if(e.key==='ArrowUp') s.y -= step;
+      else if(e.key==='ArrowDown') s.y += step;
+      else if(e.key==='ArrowLeft') s.x -= step;
+      else s.x += step;
+      Renderer.render();
+      clearTimeout(window._nudgeCommitTimer);
+      window._nudgeCommitTimer = setTimeout(()=> History.commit(), 400);
+    }
+    return;
+  }
   if(e.ctrlKey && e.key.toLowerCase()==='z'){ e.preventDefault(); History.undo(); return; }
   if(e.ctrlKey && (e.key.toLowerCase()==='y' || (e.shiftKey && e.key.toLowerCase()==='z'))){ e.preventDefault(); History.redo(); return; }
   if(e.ctrlKey && e.key.toLowerCase()==='s'){ e.preventDefault(); FileIO.exportJSON(); return; }
@@ -2820,6 +3085,7 @@ function onKeyUp(e){ if(e.code==='Space'){ ToolManager.spacePressed=false; ToolM
 function deleteSelected(){
   const sel = AppState.selected; if(!sel) return;
   let renumberDefId = null;
+  let renumberArrowKind = null;
   if(sel.type==='wall') AppState.walls = AppState.walls.filter(w=>w.id!==sel.id);
   if(sel.type==='symbol'){
     const s = AppState.symbols.find(x=>x.id===sel.id);
@@ -2827,11 +3093,16 @@ function deleteSelected(){
     AppState.symbols = AppState.symbols.filter(s=>s.id!==sel.id);
   }
   if(sel.type==='wire') AppState.wires = AppState.wires.filter(w=>w.id!==sel.id);
-  if(sel.type==='arrow') AppState.arrows = AppState.arrows.filter(a=>a.id!==sel.id);
+  if(sel.type==='arrow'){
+    const a = AppState.arrows.find(x=>x.id===sel.id);
+    if(a && a.kind==='photo') renumberArrowKind = 'photo';
+    AppState.arrows = AppState.arrows.filter(a=>a.id!==sel.id);
+  }
   if(sel.type==='road') AppState.roads = AppState.roads.filter(r=>r.id!==sel.id);
   if(sel.type==='machine') AppState.machines = AppState.machines.filter(m=>m.id!==sel.id);
   AppState.selected = null;
   if(renumberDefId) renumberSymbolsOfType(renumberDefId);
+  if(renumberArrowKind) renumberArrowsOfKind(renumberArrowKind);
   History.commit(); UI.renderPropertyPanel(); Renderer.render();
 }
 
@@ -3086,6 +3357,16 @@ const PatchNotes = {
       '"기타" 프리셋에 실제 축척(전장 4.6m x 전폭 1.8m)의 자동차 에셋 추가',
       '선택 도구에서 가운데 마우스 버튼 없이도 좌클릭 드래그만으로 화면을 이동할 수 있도록 개선',
       '회전 조절 게이지(심볼/배경 이미지) 아래에 정밀 값 입력칸 추가 — 미세 조절이 어렵던 문제 개선'
+    ]},
+    { version:'1.3', date:'2026-09-06', items:[
+      '에셋(가구 등) 이동 방식 개선 — 격자에 딱딱 붙지 않고 자유로운(소수점) 위치로 자연스럽게 배치되며, 선택 후 방향키로도 미세 이동 가능 (격자에 맞추고 싶을 땐 Alt+드래그)',
+      '심볼 크기 조절 범위 확대(0.5~2.5배 → 0.1~6배) 및 정밀 값 입력칸 추가',
+      '욕실(욕조·변기), 화장대, 가스보일러 에셋 추가',
+      '에어컨 에셋에 벽걸이/천장형/스탠드 세부 종류 추가 — 팔레트에서 꾹 누르면 선택 가능하고, 배치 후에도 속성 패널에서 종류를 바꿀 수 있음',
+      '촬영방향 표시를 화살표에서 카메라 시야를 나타내는 "시야 콘"(부채꼴) 모양으로 변경 — 배선 경로와 비슷해 보여 헷갈리던 문제 개선. 부채꼴 안쪽 아무 곳이나 클릭해도 선택되며, 끝점을 드래그해 각도·범위를 조절할 수 있음. 여러 개일 경우 부채꼴 안에 "촬영방향1" 식으로 배치 순서대로 자동 번호가 매겨짐(증거위치 등과 동일한 방식). 속성 패널에 "부채꼴 벌어짐(°)" 조절칸을 추가해 시야가 벌어지는 폭(꼭지각)도 직접 조절 가능(기존엔 70도로 고정)',
+      'PNG/PDF 내보내기 범례에서 아이콘과 글자가 겹쳐 보이던 버그 수정(텍스트 정렬 설정이 이전 값에서 되돌아오지 않던 것이 원인). 배치된 심볼은 도면에 이미 이름표가 붙어있으므로 범례에는 화살표·배선·도로처럼 별도 표시가 필요한 항목만 남기도록 정리',
+      '화살표(연소확대방향/촬영방향)의 길이·각도를 속성 패널에서 정확한 숫자로 직접 입력할 수 있도록 개선 (기존엔 각도가 드래그로만 조절되는 고정값처럼 보였음)',
+      '심볼(가구 등)을 선택하면 캔버스에 나타나는 상하좌우 가장자리 핸들을 드래그해 가로/세로를 따로 늘이거나 줄일 수 있음 — 예: 좌우 핸들을 당기면 가로로만 늘어나고 세로는 그대로 유지됨. 속성 패널에도 가로/세로 배율을 각각 정확히 입력하는 칸을 추가했고, 기존 "크기" 조절은 가로/세로를 다시 같은 비율로 맞추는 용도로 유지됨'
     ]}
   ],
 
@@ -3186,9 +3467,64 @@ const UI = {
     const cctx = c.getContext('2d'); cctx.translate(20,20); def.draw(cctx, 28);
     const label = document.createElement('span'); label.textContent = def.name;
     item.appendChild(c); item.appendChild(label);
-    item.addEventListener('click', ()=> ToolManager.startSymbolPlacement(def.id));
+    const group = SYMBOL_VARIANT_GROUPS[def.id];
+    if(group){
+      // 세부 종류가 있는 심볼: 짧게 클릭하면 기본 종류를 바로 배치하고,
+      // 꾹 눌러(길게 누르기) 종류를 고를 수 있는 작은 메뉴를 띄운다.
+      item.classList.add('has-variants');
+      item.title = '꾹 누르면 세부 종류를 선택할 수 있습니다';
+      let pressTimer = null, longPressed = false, startPt = null;
+      const clearPress = ()=>{ if(pressTimer){ clearTimeout(pressTimer); pressTimer=null; } };
+      item.addEventListener('pointerdown', ev=>{
+        longPressed = false; startPt = {x:ev.clientX, y:ev.clientY};
+        clearPress();
+        pressTimer = setTimeout(()=>{ longPressed = true; this.showVariantMenu(group, item); }, 480);
+      });
+      item.addEventListener('pointermove', ev=>{
+        if(startPt && Geo.dist({x:ev.clientX,y:ev.clientY}, startPt) > 8) clearPress();
+      });
+      item.addEventListener('pointerup', clearPress);
+      item.addEventListener('pointerleave', clearPress);
+      item.addEventListener('click', ()=>{
+        if(longPressed){ longPressed=false; return; }
+        ToolManager.startSymbolPlacement(def.id);
+      });
+    } else {
+      item.addEventListener('click', ()=> ToolManager.startSymbolPlacement(def.id));
+    }
     item.addEventListener('dragstart', ev=>{ ev.dataTransfer.setData('text/plain', def.id); });
     return item;
+  },
+
+  showVariantMenu(group, anchorEl){
+    this.hideVariantMenu();
+    const menu = document.createElement('div');
+    menu.id = 'variant-menu'; menu.className = 'variant-menu';
+    group.forEach(v=>{
+      const def = SymbolLibrary.get(v.defId); if(!def) return;
+      const opt = document.createElement('div');
+      opt.className = 'variant-menu-item';
+      const c = document.createElement('canvas'); c.width=32; c.height=32;
+      const cctx = c.getContext('2d'); cctx.translate(16,16); def.draw(cctx, 22);
+      const lb = document.createElement('span'); lb.textContent = v.label;
+      opt.appendChild(c); opt.appendChild(lb);
+      opt.addEventListener('click', ()=>{ ToolManager.startSymbolPlacement(v.defId); this.hideVariantMenu(); });
+      menu.appendChild(opt);
+    });
+    document.body.appendChild(menu);
+    const r = anchorEl.getBoundingClientRect();
+    const left = Math.max(4, Math.min(r.left, window.innerWidth - menu.offsetWidth - 8));
+    menu.style.left = left+'px';
+    menu.style.top = (r.bottom+4)+'px';
+    setTimeout(()=>{
+      this._variantMenuOutsideHandler = ev=>{ if(!menu.contains(ev.target)) this.hideVariantMenu(); };
+      document.addEventListener('pointerdown', this._variantMenuOutsideHandler);
+    }, 0);
+  },
+  hideVariantMenu(){
+    const menu = document.getElementById('variant-menu');
+    if(menu) menu.remove();
+    if(this._variantMenuOutsideHandler){ document.removeEventListener('pointerdown', this._variantMenuOutsideHandler); this._variantMenuOutsideHandler=null; }
   },
 
   buildPalette(){
@@ -3210,7 +3546,7 @@ const UI = {
         container = holder;
       }
 
-      const items = byCat[cat];
+      const items = byCat[cat].filter(d=>!d.hidden);
       const ungrouped = items.filter(d=>!d.subcategory);
       const groups = {};
       items.filter(d=>d.subcategory).forEach(d=> (groups[d.subcategory]=groups[d.subcategory]||[]).push(d));
@@ -3485,17 +3821,42 @@ const UI = {
     else if(sel.type==='symbol'){
       const s = AppState.symbols.find(x=>x.id===sel.id); if(!s){ AppState.selected=null; return this.renderPropertyPanel(); }
       const def = SymbolLibrary.get(s.defId);
+      if(s.scaleX==null) s.scaleX = s.scale||1;
+      if(s.scaleY==null) s.scaleY = s.scale||1;
+      const variantGroup = findSymbolVariantGroup(s.defId);
       let hint = '';
       if(def.snapToWall) hint = '<div class="prop-hint">벽 근처로 드래그하면 벽의 각도에 자동으로 맞춰 붙습니다.</div>';
       if(def.numbered) hint += '<div class="prop-hint">번호는 배치 순서대로 자동으로 매겨집니다. 라벨을 직접 수정하면 그 항목은 자동 번호 갱신에서 제외됩니다.</div>';
+      hint += '<div class="prop-hint">심볼을 선택하면 캔버스에 표시되는 작은 사각 핸들(상하좌우)을 드래그해도 그 축만 늘이거나 줄일 수 있습니다.</div>';
+      let variantHtml = '';
+      if(variantGroup){
+        variantHtml = '<div style="margin-bottom:8px;"><label style="display:block; color:var(--text-dim); font-size:12px; margin-bottom:4px;">세부 종류</label>'+
+          '<div class="variant-switch-row">'+
+          variantGroup.map(v=>'<button type="button" class="variant-switch-btn'+(v.defId===s.defId?' active':'')+'" data-vdefid="'+escapeHtml(v.defId)+'">'+escapeHtml(v.label)+'</button>').join('')+
+          '</div></div>';
+      }
       panel.innerHTML =
         '<div class="row"><label>종류</label><span>'+escapeHtml(def.name)+'</span></div>'+
+        variantHtml+
         '<div class="row"><label>라벨</label><input type="text" id="ps-label" value="'+escapeHtml(s.label||'')+'" placeholder="'+escapeHtml(def.name)+'"></div>'+
         '<div class="row"><label>회전(°)</label><input type="range" id="ps-rot" min="0" max="359" value="'+(s.rotation||0)+'"></div>'+
         '<div class="row"><label style="font-size:10.5px;">↳ 정밀 값 입력</label><input type="number" id="ps-rot-num" min="0" max="359" step="1" value="'+(s.rotation||0)+'" style="width:110px;"></div>'+
-        '<div class="row"><label>크기</label><input type="range" id="ps-scale" min="0.5" max="2.5" step="0.1" value="'+(s.scale||1)+'"></div>'+
+        '<div class="row"><label>크기(전체)</label><input type="range" id="ps-scale" min="0.1" max="6" step="0.1" value="'+Math.max(s.scaleX,s.scaleY)+'"></div>'+
+        '<div class="row"><label style="font-size:10.5px;">↳ 정밀 값 입력</label><input type="number" id="ps-scale-num" min="0.1" max="6" step="0.05" value="'+Math.max(s.scaleX,s.scaleY)+'" style="width:110px;"></div>'+
+        '<div class="row"><label style="font-size:10.5px;">↳ 가로만(x축)</label><input type="number" id="ps-scale-x" min="0.1" max="6" step="0.05" value="'+s.scaleX+'" style="width:110px;"></div>'+
+        '<div class="row"><label style="font-size:10.5px;">↳ 세로만(y축)</label><input type="number" id="ps-scale-y" min="0.1" max="6" step="0.05" value="'+s.scaleY+'" style="width:110px;"></div>'+
         hint+
         '<button class="btn-danger" id="ps-del">이 심볼 삭제</button>';
+      if(variantGroup){
+        panel.querySelectorAll('.variant-switch-btn').forEach(btn=>{
+          btn.addEventListener('click', ()=>{
+            s.defId = btn.dataset.vdefid;
+            History.commit();
+            Renderer.render();
+            UI.renderPropertyPanel();
+          });
+        });
+      }
       document.getElementById('ps-label').addEventListener('input', e=>{ s.label=e.target.value; s.autoLabel=false; Renderer.render(); });
       document.getElementById('ps-label').addEventListener('change', ()=> History.commit());
       const psRot = document.getElementById('ps-rot'), psRotNum = document.getElementById('ps-rot-num');
@@ -3507,8 +3868,32 @@ const UI = {
         s.rotation = v; psRot.value = v; Renderer.render();
       });
       psRotNum.addEventListener('change', ()=> History.commit());
-      document.getElementById('ps-scale').addEventListener('input', e=>{ s.scale=parseFloat(e.target.value); Renderer.render(); });
-      document.getElementById('ps-scale').addEventListener('change', ()=> History.commit());
+      const psScale = document.getElementById('ps-scale'), psScaleNum = document.getElementById('ps-scale-num');
+      const psScaleX = document.getElementById('ps-scale-x'), psScaleY = document.getElementById('ps-scale-y');
+      // "크기(전체)" 슬라이더/숫자칸은 가로·세로를 항상 같은 값으로 맞춰 균일하게 키우거나
+      // 줄임(엣지 드래그 등으로 축이 어긋나 있었더라도 여기로 다시 통일시킬 수 있음)
+      const setUniform = v=>{
+        s.scale = v; s.scaleX = v; s.scaleY = v;
+        psScale.value = v; psScaleNum.value = v; psScaleX.value = v; psScaleY.value = v;
+        Renderer.render();
+      };
+      psScale.addEventListener('input', e=> setUniform(parseFloat(e.target.value)));
+      psScale.addEventListener('change', ()=> History.commit());
+      psScaleNum.addEventListener('input', e=>{
+        let v = parseFloat(e.target.value); if(!isFinite(v) || v<=0) return;
+        setUniform(Math.min(6, Math.max(0.1, v)));
+      });
+      psScaleNum.addEventListener('change', ()=> History.commit());
+      psScaleX.addEventListener('input', e=>{
+        let v = parseFloat(e.target.value); if(!isFinite(v) || v<=0) return;
+        s.scaleX = Math.min(6, Math.max(0.1, v)); Renderer.render();
+      });
+      psScaleX.addEventListener('change', ()=> History.commit());
+      psScaleY.addEventListener('input', e=>{
+        let v = parseFloat(e.target.value); if(!isFinite(v) || v<=0) return;
+        s.scaleY = Math.min(6, Math.max(0.1, v)); Renderer.render();
+      });
+      psScaleY.addEventListener('change', ()=> History.commit());
       document.getElementById('ps-del').addEventListener('click', deleteSelected);
     }
     else if(sel.type==='wire'){
@@ -3526,13 +3911,61 @@ const UI = {
       const a = AppState.arrows.find(x=>x.id===sel.id); if(!a){ AppState.selected=null; return this.renderPropertyPanel(); }
       const lenM = Geo.dist({x:a.x1,y:a.y1},{x:a.x2,y:a.y2})/CONFIG.PX_PER_M;
       let angleDeg = Math.atan2(a.y2-a.y1, a.x2-a.x1)*180/Math.PI; if(angleDeg<0) angleDeg+=360;
-      const kindLabel = a.kind==='spread' ? '연소확대방향' : '촬영방향';
+      const kindLabel = a.kind==='spread' ? '연소확대방향 화살표' : '촬영방향 (시야 표시)';
+      const dragHint = a.kind==='photo'
+        ? '캔버스에서 첫 점(촬영 위치)과 둘째 점(방향·범위)의 핸들을 드래그하면 시야 표시를 조절할 수 있습니다. 부채꼴 안쪽 아무 곳이나 클릭해도 선택됩니다.'
+        : '캔버스에서 양 끝점(사각 핸들)을 드래그하면 각도와 길이를 조절할 수 있습니다.';
+      const labelRow = a.kind==='photo'
+        ? '<div class="row"><label>라벨</label><input type="text" id="pa-label" value="'+escapeHtml(a.label||'')+'" placeholder="촬영방향"></div>'+
+          '<div class="prop-hint">번호는 배치 순서대로 자동으로 매겨집니다. 라벨을 직접 수정하면 그 항목은 자동 번호 갱신에서 제외됩니다.</div>'
+        : '';
+      const spreadDeg = a.spreadDeg!=null ? a.spreadDeg : 70;
+      const spreadRow = a.kind==='photo'
+        ? '<div class="row"><label>부채꼴 벌어짐(°)</label><input type="range" id="pa-spread" min="10" max="170" step="1" value="'+spreadDeg+'"></div>'+
+          '<div class="row"><label style="font-size:10.5px;">↳ 정밀 값 입력</label><input type="number" id="pa-spread-num" min="10" max="170" step="1" value="'+spreadDeg+'" style="width:110px;"></div>'+
+          '<div class="prop-hint">부채꼴이 벌어지는 폭(꼭지각)입니다. 값이 클수록 시야가 넓어지고, 작을수록 좁고 뾰족해집니다. 이 값을 바꿔도 방향(각도)에는 영향이 없습니다.</div>'
+        : '';
       panel.innerHTML =
-        '<div class="row"><label>종류</label><span>'+kindLabel+' 화살표</span></div>'+
-        '<div class="row"><label>길이</label><span>'+lenM.toFixed(2)+' m</span></div>'+
-        '<div class="row"><label>각도</label><span>'+angleDeg.toFixed(0)+'°</span></div>'+
-        '<div class="prop-hint">캔버스에서 양 끝점(사각 핸들)을 드래그하면 각도와 길이를 조절할 수 있습니다.</div>'+
+        '<div class="row"><label>종류</label><span>'+kindLabel+'</span></div>'+
+        labelRow+
+        '<div class="row"><label>길이(m)</label><input type="number" id="pa-len" value="'+lenM.toFixed(2)+'" min="0.05" step="0.01"></div>'+
+        '<div class="row"><label>각도(°)</label><input type="number" id="pa-angle" value="'+angleDeg.toFixed(0)+'" min="0" max="359" step="1"></div>'+
+        spreadRow+
+        '<div class="prop-hint">'+dragHint+' 길이·각도를 직접 입력해 정확한 값으로 맞출 수도 있습니다.</div>'+
         '<button class="btn-danger" id="pa-del">이 화살표 삭제</button>';
+      if(a.kind==='photo'){
+        document.getElementById('pa-label').addEventListener('input', e=>{ a.label=e.target.value; a.autoLabel=false; Renderer.render(); });
+        document.getElementById('pa-label').addEventListener('change', ()=> History.commit());
+        const paSpread = document.getElementById('pa-spread'), paSpreadNum = document.getElementById('pa-spread-num');
+        paSpread.addEventListener('input', e=>{ a.spreadDeg=parseFloat(e.target.value); paSpreadNum.value=e.target.value; Renderer.render(); });
+        paSpread.addEventListener('change', ()=> History.commit());
+        paSpreadNum.addEventListener('input', e=>{
+          let v = parseFloat(e.target.value); if(!isFinite(v)) return;
+          v = Math.min(170, Math.max(10, v));
+          a.spreadDeg = v; paSpread.value = v; Renderer.render();
+        });
+        paSpreadNum.addEventListener('change', ()=> History.commit());
+      }
+      document.getElementById('pa-len').addEventListener('change', e=>{
+        const newLenM = parseFloat(e.target.value);
+        if(!isFinite(newLenM) || newLenM<=0){ e.target.value = lenM.toFixed(2); return; }
+        const newLenPx = newLenM*CONFIG.PX_PER_M;
+        const curLenPx = Geo.dist({x:a.x1,y:a.y1},{x:a.x2,y:a.y2});
+        const ang = curLenPx>0.001 ? Math.atan2(a.y2-a.y1, a.x2-a.x1) : 0;
+        a.x2 = a.x1 + Math.cos(ang)*newLenPx;
+        a.y2 = a.y1 + Math.sin(ang)*newLenPx;
+        History.commit(); Renderer.render(); UI.renderPropertyPanel();
+      });
+      document.getElementById('pa-angle').addEventListener('change', e=>{
+        let newAngleDeg = parseFloat(e.target.value);
+        if(!isFinite(newAngleDeg)){ e.target.value = angleDeg.toFixed(0); return; }
+        newAngleDeg = ((newAngleDeg%360)+360)%360;
+        const curLenPx = Geo.dist({x:a.x1,y:a.y1},{x:a.x2,y:a.y2});
+        const rad = newAngleDeg*Math.PI/180;
+        a.x2 = a.x1 + Math.cos(rad)*curLenPx;
+        a.y2 = a.y1 + Math.sin(rad)*curLenPx;
+        History.commit(); Renderer.render(); UI.renderPropertyPanel();
+      });
       document.getElementById('pa-del').addEventListener('click', deleteSelected);
     }
     else if(sel.type==='road'){
