@@ -85,6 +85,12 @@
     `regShape()`와 동일한 데이터 포맷을 기대함.
 16. MODAL — 사각형/ㄱ자 템플릿 치수 입력용 범용 모달.
 17. PATCH NOTES POPUP — 위 "버전 관리" 절 참고.
+17b. HELP & TUTORIAL — `Help`(단축키 한눈에 표, `?` 키/⌨ 버튼, 인쇄 가능)와 `Tutorial`(따라 하기
+    튜토리얼). 튜토리얼은 `steps` 배열에 단계를 추가하는 방식(title/body/highlight/enter/tasks).
+    tasks의 `done()`이 250ms마다 실제 AppState를 확인해 자동 진행하고, 상태에 안 남는
+    동작(Ctrl+Z/Y/S, 방향키 미세이동, PNG 버튼)은 `_attach()`가 window 캡처 리스너로 `seen`에
+    기록. 시작 시 기존 도면은 `prevDoc`(메모리)에 보관했다가 종료 시 복원 가능. **새 기능/단축키를
+    추가하면 `Help.sections` 표와 필요하면 튜토리얼 단계도 함께 갱신할 것.**
 18. UI — 나머지 전부(팔레트 빌드, 툴바 바인딩, 속성 패널, 테마 토글 등)를 묶는 마지막
     모듈. `UI.init()`이 진입점, `DOMContentLoaded`에서 호출.
 

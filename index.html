@@ -211,12 +211,75 @@
   #patchnotes-hide-row{display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-dim); cursor:pointer;}
   #patchnotes-close{padding:7px 18px; border-radius:6px; border:1px solid var(--accent); background:var(--accent); color:#fff; font-weight:600;}
 
+  /* ===== Keycap / Tutorial / Help sheet ===== */
+  kbd{
+    display:inline-block; min-width:1.7em; padding:1px 6px; margin:0 1px; text-align:center;
+    border:1px solid var(--border); border-bottom-width:2px; border-radius:5px;
+    background:var(--subtle-bg); color:var(--text);
+    font-family:ui-monospace,Consolas,monospace; font-size:11.5px; font-weight:700; line-height:1.5;
+  }
+  .tut-highlight{
+    outline:2px solid var(--accent) !important; outline-offset:2px; border-radius:6px;
+    animation:tut-pulse 1.2s ease-in-out infinite;
+  }
+  @keyframes tut-pulse{
+    0%,100%{ box-shadow:0 0 0 0 rgba(37,99,235,.6); }
+    50%{ box-shadow:0 0 0 8px rgba(37,99,235,0); }
+  }
+  #tut-card, #tut-toast{
+    position:fixed; left:50%; transform:translateX(-50%); bottom:46px; z-index:150;
+    width:430px; max-width:calc(100vw - 20px);
+    background:var(--panel); color:var(--text); border:1px solid var(--accent);
+    border-radius:12px; box-shadow:0 12px 34px rgba(0,0,0,.35); overflow:hidden;
+  }
+  #tut-card.tut-done{ border-color:#16a34a; }
+  .tut-head{ display:flex; align-items:center; gap:8px; padding:10px 12px 8px; }
+  #tut-count{ font-size:11px; font-weight:700; color:#fff; background:var(--accent); border-radius:999px; padding:1px 8px; white-space:nowrap; }
+  #tut-title{ flex:1; font-size:14px; }
+  #tut-close{ border:none; background:transparent; color:var(--text-dim); font-size:16px; padding:0 4px; }
+  #tut-close:hover{ color:var(--danger); }
+  .tut-bar{ height:3px; background:var(--border); }
+  #tut-bar-fill{ height:100%; width:0; background:var(--accent); transition:width .3s; }
+  #tut-body, .tut-toast-body{ padding:10px 14px 4px; font-size:12.5px; line-height:1.7; }
+  .tut-tip{ display:block; margin-top:4px; font-size:11.5px; color:var(--text-dim); }
+  #tut-tasks{ list-style:none; margin:4px 0 0; padding:4px 14px 6px; font-size:12.5px; }
+  #tut-tasks li{ padding:2px 0; color:var(--text-dim); }
+  #tut-tasks li.done{ color:#16a34a; font-weight:600; }
+  #tut-tasks li .ck{ display:inline-block; width:1.4em; }
+  #tut-foot, .tut-toast-foot{ display:flex; flex-wrap:wrap; justify-content:flex-end; gap:6px; padding:8px 12px 12px; }
+  #tut-foot button, .tut-toast-foot button{
+    padding:6px 12px; border-radius:6px; border:1px solid var(--border); background:var(--panel); color:var(--text);
+  }
+  #tut-foot button:hover, .tut-toast-foot button:hover{ border-color:var(--accent); }
+  #tut-foot button.primary, .tut-toast-foot button.primary{ background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600; }
+  #help-overlay{
+    position:fixed; inset:0; background:rgba(15,18,25,.5); display:none; align-items:center; justify-content:center; z-index:160;
+  }
+  #help-box{ background:var(--panel); color:var(--text); border-radius:12px; padding:20px 24px; width:720px; max-width:calc(100vw - 30px); max-height:88vh; overflow-y:auto; box-shadow:0 14px 40px rgba(0,0,0,.3); }
+  #help-box h3{ margin:0 0 4px; font-size:16px; }
+  .help-sub{ font-size:12px; color:var(--text-dim); margin-bottom:12px; }
+  .help-grid{ display:grid; grid-template-columns:1fr 1fr; gap:6px 24px; }
+  .help-sec h4{ margin:12px 0 6px; font-size:12.5px; color:var(--accent); border-bottom:1px solid var(--border); padding-bottom:3px; }
+  .help-row{ display:flex; gap:10px; align-items:baseline; padding:2px 0; font-size:12.5px; }
+  .help-row .hk{ flex:0 0 150px; white-space:nowrap; }
+  .help-row .hd{ flex:1; color:var(--text); }
+  #help-actions{ display:flex; justify-content:flex-end; gap:6px; margin-top:16px; padding-top:12px; border-top:1px solid var(--border); }
+  #help-actions button{ padding:7px 16px; border-radius:6px; border:1px solid var(--border); background:var(--panel); color:var(--text); }
+  #help-actions button.primary{ background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600; }
+  @media (max-width:760px){ .help-grid{ grid-template-columns:1fr; } }
+
   /* ===== Print ===== */
   #print-area{display:none;}
   @media print{
     body > *:not(#print-area){display:none !important;}
     #print-area{display:block !important; margin:0; padding:0;}
     #print-area img{width:100%; display:block;}
+    #print-area .help-sheet{ color:#111; font-family:'Malgun Gothic','Segoe UI',sans-serif; }
+    #print-area .help-sheet h3{ margin:0 0 4px; font-size:18px; }
+    #print-area .help-sub{ color:#555; }
+    #print-area .help-sec h4{ color:#1d4ed8; border-color:#999; }
+    #print-area .help-row .hd{ color:#111; }
+    #print-area kbd{ background:#f3f4f6; color:#111; border-color:#888; }
     @page{ margin:8mm; }
   }
 </style>
@@ -249,6 +312,8 @@
     <button id="btn-export-pdf">PDF 내보내기</button>
   </div>
   <div class="grp">
+    <button id="btn-tutorial" title="따라 하며 배우는 튜토리얼">🎓 튜토리얼</button>
+    <button id="btn-help" title="단축키 한눈에 보기 (?)">⌨ 단축키</button>
     <button id="btn-theme-toggle" title="다크모드 전환">🌙 다크모드</button>
   </div>
 </div>
@@ -415,6 +480,35 @@
   </div>
 </div>
 
+<div id="tut-card" style="display:none;">
+  <div class="tut-head">
+    <span id="tut-count"></span><b id="tut-title"></b>
+    <button id="tut-close" title="튜토리얼 종료">✕</button>
+  </div>
+  <div class="tut-bar"><div id="tut-bar-fill"></div></div>
+  <div id="tut-body"></div>
+  <ul id="tut-tasks"></ul>
+  <div id="tut-foot"></div>
+</div>
+
+<div id="tut-toast" style="display:none;">
+  <div class="tut-toast-body"><b>🎓 처음 사용하시나요?</b><br>약 5분 튜토리얼로 기본 사용법과 단축키를 직접 해보며 배울 수 있어요. 나중에도 상단 <b>튜토리얼</b> 버튼으로 언제든 시작할 수 있습니다.</div>
+  <div class="tut-toast-foot">
+    <button id="tut-toast-later">나중에</button>
+    <button id="tut-toast-start" class="primary">튜토리얼 시작</button>
+  </div>
+</div>
+
+<div id="help-overlay">
+  <div id="help-box">
+    <div id="help-content"></div>
+    <div id="help-actions">
+      <button id="help-print">🖨 인쇄 / PDF로 저장</button>
+      <button id="help-close" class="primary">닫기</button>
+    </div>
+  </div>
+</div>
+
 <div id="patchnotes-overlay">
   <div id="patchnotes-box">
     <h3 id="patchnotes-title">업데이트 안내</h3>
@@ -435,7 +529,7 @@
 /* =====================================================================
    1. CONFIG
    ===================================================================== */
-const APP_VERSION = '1.31';
+const APP_VERSION = '1.4';
 
 const CONFIG = {
   PX_PER_M: 60,
@@ -3056,6 +3150,10 @@ function onKeyDown(e){
   const typing = activeEl && (activeEl.tagName==='INPUT' || activeEl.tagName==='TEXTAREA' || activeEl.tagName==='SELECT');
   if(typing) return;
 
+  // 단축키 표가 열려 있으면 ? 로 닫고, 그 외 키는 도면 편집에 전달하지 않음
+  if(e.key==='?'){ e.preventDefault(); Help.toggle(); return; }
+  if(Help.isOpen()){ if(e.key==='Escape') Help.close(); return; }
+
   if(e.key==='Escape'){ ToolManager.cancelInteraction(); AppState.selected=null; UI.renderPropertyPanel(); Renderer.render(); return; }
   if(e.key==='Enter'){
     const ic = ToolManager.interaction;
@@ -3084,7 +3182,7 @@ function onKeyDown(e){
     }
     return;
   }
-  if(e.ctrlKey && e.key.toLowerCase()==='z'){ e.preventDefault(); History.undo(); return; }
+  if(e.ctrlKey && !e.shiftKey && e.key.toLowerCase()==='z'){ e.preventDefault(); History.undo(); return; }
   if(e.ctrlKey && (e.key.toLowerCase()==='y' || (e.shiftKey && e.key.toLowerCase()==='z'))){ e.preventDefault(); History.redo(); return; }
   if(e.ctrlKey && e.key.toLowerCase()==='s'){ e.preventDefault(); FileIO.exportJSON(); return; }
   if(e.key==='v' || e.key==='V') ToolManager.setTool('select');
@@ -3389,6 +3487,12 @@ const PatchNotes = {
       '"가구" 프리셋에 "테이블" 묶음 추가 — 꾹 누르면 책상·탁자·티테이블·식탁 중에서 고를 수 있고, 배치 후에도 속성 패널에서 종류를 바꿀 수 있음 (기존 식탁 심볼은 그대로 호환)',
       'TV에 거치형/벽걸이 세부 종류 추가 (꾹 누르기 또는 속성 패널에서 선택)',
       'PNG/PDF 내보내기에 배경 이미지가 더 이상 포함되지 않음 — 배경 이미지는 따라 그리기 위한 참고용이라 완성 도면에는 나오지 않도록 변경 (화면에서는 그대로 보임)'
+    ]},
+    { version:'1.4', date:'2026-09-25', items:[
+      '초보자용 "따라 하기 튜토리얼" 추가 — 상단 🎓 튜토리얼 버튼(처음 열면 한 번 안내)으로 시작. 새 빈 도면에서 화면 이동, 벽 그리기, 문·창·가구 배치, 촬영방향, 되돌리기, 저장·내보내기를 직접 해보며 배우고, 해당 단축키를 그 자리에서 익힙니다. 동작을 하면 자동으로 다음 단계로 넘어가며, 언제든 건너뛰기·종료 가능',
+      '튜토리얼 시작 전 작업하던 도면은 종료할 때 "이전 도면 복원"으로 되돌릴 수 있음 (브라우저를 닫으면 사라지니 중요한 도면은 먼저 저장)',
+      '"단축키 한눈에 보기" 추가 — 상단 ⌨ 단축키 버튼 또는 ? 키로 언제든 열고 닫을 수 있으며, 인쇄/PDF로 저장해 책상에 붙여 둘 수 있음',
+      'Ctrl+Shift+Z가 다시실행이 아니라 실행취소로 동작하던 문제 수정'
     ]}
   ],
 
@@ -3455,6 +3559,338 @@ const PatchNotes = {
 };
 
 /* =====================================================================
+   17b. HELP (단축키 한눈에) & TUTORIAL (따라 하기)
+   ===================================================================== */
+const kbdTag = t => '<kbd>'+t+'</kbd>';
+const combo = (...keys) => keys.map(kbdTag).join('+');
+
+const Help = {
+  // 단축키 표 — 실제 동작하는 키만 적을 것 (CANVAS INPUT HANDLING의 onKeyDown 참고)
+  // 각 행: [왼쪽(키 표시, HTML), 설명]
+  sections: [
+    { title:'도구 선택 (키보드)', rows:[
+      [kbdTag('V'),'선택 / 이동'], [kbdTag('W'),'벽 그리기'], [kbdTag('U'),'곡면 벽 (3점)'], [kbdTag('C'),'배선 경로'],
+      [kbdTag('R'),'도로'], [kbdTag('D'),'비포장도로'], [kbdTag('M'),'기계설비 사각형'], [kbdTag('A'),'연소확대방향'], [kbdTag('P'),'촬영방향']
+    ]},
+    { title:'그리는 중', rows:[
+      [kbdTag('Enter')+' / 더블클릭','이어 그리기 끝내기 (벽·배선·도로)'],
+      [kbdTag('Esc'),'그리기 취소 · 배치 모드 끝내기 · 선택 해제'],
+      ['클릭 두 번','화살표·촬영방향을 시작점→끝점 클릭으로 그리기 (드래그도 가능)']
+    ]},
+    { title:'편집', rows:[
+      [kbdTag('Delete'),'선택한 것 삭제'],
+      [combo('Ctrl','Z'),'실행취소'], [combo('Ctrl','Y'),'다시실행'], [combo('Ctrl','S'),'JSON으로 저장'],
+      [kbdTag('←')+kbdTag('↑')+kbdTag('↓')+kbdTag('→'),'선택한 심볼 미세 이동 (1px)'],
+      [combo('Shift','방향키'),'선택한 심볼 크게 이동 (10px)'],
+      [combo('Alt','드래그'),'심볼을 격자에 맞춰 이동']
+    ]},
+    { title:'화면', rows:[
+      ['마우스 휠','확대 / 축소'],
+      [combo('Space','드래그'),'화면 이동'],
+      ['휠 버튼 드래그','화면 이동'],
+      ['빈 곳 좌클릭 드래그','화면 이동 (선택 도구일 때)'],
+      [kbdTag('?'),'이 단축키 표 열기 / 닫기']
+    ]},
+    { title:'마우스 요령', rows:[
+      ['● 표시 항목 꾹 누르기','세부 종류 고르기 (에어컨·TV·테이블)'],
+      ['선택 후 사각 핸들 드래그','심볼 가로/세로만 늘이기'],
+      ['나침반 드래그','북쪽 방향 돌리기 (도면은 그대로)'],
+      ['벽 선택 → 오른쪽 패널','길이(m)·두께(cm)를 숫자로 정확히']
+    ]}
+  ],
+  html(){
+    const rows = sec => sec.rows.map(r=>'<div class="help-row"><div class="hk">'+r[0]+'</div><div class="hd">'+escapeHtml(r[1])+'</div></div>').join('');
+    const body = this.sections.map(sec=>'<div class="help-sec"><h4>'+escapeHtml(sec.title)+'</h4>'+rows(sec)+'</div>').join('');
+    return '<div class="help-sheet"><h3>⌨ 단축키 한눈에 보기</h3>'+
+      '<div class="help-sub">화재조사 2D 현장복원도 작성 도구 v'+APP_VERSION+' · 어느 화면에서든 <kbd>?</kbd> 키로 열고 닫을 수 있어요.</div>'+
+      '<div class="help-grid">'+body+'</div></div>';
+  },
+  open(){
+    document.getElementById('help-content').innerHTML = this.html();
+    document.getElementById('help-overlay').style.display = 'flex';
+  },
+  close(){ document.getElementById('help-overlay').style.display = 'none'; },
+  isOpen(){ return document.getElementById('help-overlay').style.display === 'flex'; },
+  toggle(){ this.isOpen() ? this.close() : this.open(); },
+  print(){
+    const area = document.getElementById('print-area');
+    area.innerHTML = this.html();
+    window.print();
+  },
+  init(){
+    document.getElementById('btn-help').addEventListener('click', ()=> this.toggle());
+    document.getElementById('help-close').addEventListener('click', ()=> this.close());
+    document.getElementById('help-print').addEventListener('click', ()=> this.print());
+    document.getElementById('help-overlay').addEventListener('mousedown', e=>{ if(e.target.id==='help-overlay') this.close(); });
+  }
+};
+
+const Tutorial = {
+  active:false, idx:0, seen:new Set(), base:null, timer:null, prevDoc:null, advancing:false, _sig:'',
+  _onKey:null, _onClick:null,
+
+  // 각 단계: title, body(HTML), highlight(강조할 요소 선택자), enter(진입 시 준비), tasks[{label, done(), optional}]
+  // manual:true 이면 과제 없이 '다음' 버튼으로 넘어감. tasks가 전부 달성되면 자동으로 다음 단계로.
+  steps: [
+    { manual:true, title:'튜토리얼을 시작합니다',
+      body:'새 <b>빈 도면</b>에서 직접 해보며 기본 사용법과 <b>단축키</b>를 익힙니다 (약 5분).<br>안내대로 해보면 자동으로 다음 단계로 넘어가요. 어렵거나 필요 없으면 <b>건너뛰기</b>, 언제든 <b>✕</b>로 나갈 수 있습니다.' },
+    { title:'화면 확대 · 이동',
+      body:'도면이 커지면 가장 자주 쓰는 조작이에요.<br>• 확대/축소: 마우스 <b>휠</b> 굴리기<br>• 이동: '+kbdTag('Space')+'를 누른 채 드래그 · <b>휠 버튼</b> 드래그 · 선택 도구에서 <b>빈 곳을 좌클릭 드래그</b>',
+      enter(){ ToolManager.setTool('select'); Tutorial.base = { zoom:AppState.view.zoom, px:AppState.view.panX, py:AppState.view.panY }; },
+      tasks:[
+        { label:'휠로 확대 / 축소해 보기', done:()=> Math.abs(AppState.view.zoom - Tutorial.base.zoom) > 0.02 },
+        { label:'화면 옮겨 보기', done:()=> Math.hypot(AppState.view.panX-Tutorial.base.px, AppState.view.panY-Tutorial.base.py) > 30 }
+      ] },
+    { title:'벽 그리기', highlight:['.tool-btn[data-tool="wall"]'],
+      body:kbdTag('W')+' 키를 눌러 <b>벽 그리기</b>를 켜세요. 캔버스를 <b>클릭할 때마다 벽이 이어집니다</b> (5번 클릭 = 네 벽의 방). 다 그렸으면 '+kbdTag('Enter')+' (또는 더블클릭)로 끝냅니다.'+
+        '<span class="tut-tip">💡 벽은 격자와 0/45/90°에 자동으로 맞춰져요.</span>',
+      tasks:[
+        { label:'W 키로 벽 그리기 켜기', done:()=> ToolManager.current==='wall' },
+        { label:'벽 3개 이상 그리고 Enter로 끝내기', done:()=> AppState.walls.length>=3 && ToolManager.interaction.mode!=='wall-chain' }
+      ] },
+    { title:'선택하고 고치기', highlight:['.tool-btn[data-tool="select"]'],
+      body:kbdTag('V')+' 키로 <b>선택 도구</b>로 돌아와 방금 그린 벽을 클릭해 보세요. 오른쪽 <b>속성 패널</b>에서 길이(m)·두께(cm)를 숫자로 정확히 고칠 수 있어요. 빈 곳을 클릭하면 선택이 풀립니다.',
+      tasks:[
+        { label:'V 키로 선택 도구 켜기', done:()=> ToolManager.current==='select' },
+        { label:'벽 하나 클릭해서 선택하기', done:()=> !!AppState.selected && AppState.selected.type==='wall' }
+      ] },
+    { title:'문 · 창문 놓기', highlight:['.sym-item[data-defid="door"]','.sym-item[data-defid="window"]'],
+      body:'왼쪽 <b>건축 요소</b>에서 출입문을 클릭한 뒤 벽 근처를 클릭하세요. 배치 모드는 계속 켜져 있어 클릭할 때마다 하나씩 놓이고, 벽에 가까이 대면 <b>벽에 붙으며 각도가 자동으로 맞춰져요</b>. 창문도 같은 방법으로! 끝내려면 '+kbdTag('Esc'),
+      tasks:[
+        { label:'출입문 놓기', done:()=> AppState.symbols.some(s=>s.defId==='door') },
+        { label:'창문 놓기', done:()=> AppState.symbols.some(s=>s.defId==='window') }
+      ] },
+    { title:'가구 · 가전 놓기', highlight:['.sym-item[data-defid="furn_sofa"]','.sym-item[data-defid="furn_desk"]'],
+      enter(){ document.querySelectorAll('#palette-furn details').forEach(d=>d.open=true); },
+      body:'왼쪽 <b>가구</b>에서 소파·침대 등을 골라 방 안에 놓아 보세요. 끝내려면 '+kbdTag('Esc')+
+        '<span class="tut-tip">💡 점(●)이 붙은 항목(테이블·TV·에어컨)은 <b>꾹 누르면</b> 세부 종류를 고를 수 있어요.</span>',
+      tasks:[
+        { label:'가구를 방 안에 1개 이상 놓기', done:()=> Tutorial._furniture().length>0 },
+        { label:'(선택) 테이블을 꾹 눌러 세부 종류 보기', optional:true, done:()=> !!document.getElementById('variant-menu') }
+      ] },
+    { title:'이동 · 회전 · 크기',
+      body:'놓은 가구를 클릭해 선택하세요.<br>• 드래그: 자유롭게 이동 ('+kbdTag('Alt')+'+드래그 = 격자에 맞춤)<br>• '+kbdTag('←')+kbdTag('↑')+kbdTag('↓')+kbdTag('→')+': 미세 이동 ('+kbdTag('Shift')+'+방향키 = 크게)<br>• 크기·회전: 오른쪽 패널, 또는 선택하면 나타나는 <b>사각 핸들</b>을 끌어 가로/세로만 늘이기',
+      tasks:[
+        { label:'가구 클릭해서 선택하기', done:()=> !!AppState.selected && AppState.selected.type==='symbol' && Tutorial._furniture().some(s=>s.id===AppState.selected.id) },
+        { label:'방향키로 미세 이동하기', done:()=> Tutorial.seen.has('nudge') },
+        { label:'회전 또는 크기 바꿔 보기', done:()=> Tutorial._furniture().some(s=> (s.rotation||0)!==0 || (s.scaleX!=null && s.scaleX!==1) || (s.scaleY!=null && s.scaleY!==1)) }
+      ] },
+    { title:'촬영방향 · 연소확대방향', highlight:['#tool-arrow-photo','#tool-arrow-spread'],
+      body:kbdTag('P')+' 키: 촬영 위치에서 드래그(또는 클릭 두 번)하면 시야 <b>부채꼴</b>이 그려져요 (번호 자동).<br>'+kbdTag('A')+' 키: 불이 번져 나간 방향을 <b>화살표</b>로 표시합니다.<br>선택하면 오른쪽 패널에서 각도·벌어짐을 숫자로 조절할 수 있어요.',
+      tasks:[
+        { label:'P 키로 촬영방향 그리기', done:()=> AppState.arrows.some(a=>a.kind==='photo') },
+        { label:'A 키로 연소확대방향 그리기', done:()=> AppState.arrows.some(a=>a.kind==='spread') }
+      ] },
+    { title:'되돌리기', highlight:['#btn-undo','#btn-redo'],
+      body:'실수해도 괜찮아요! '+kbdTag('Ctrl')+'+'+kbdTag('Z')+' 실행취소, '+kbdTag('Ctrl')+'+'+kbdTag('Y')+' 다시실행. 선택한 것은 '+kbdTag('Delete')+'로 지웁니다.',
+      tasks:[
+        { label:'Ctrl+Z 로 실행취소', done:()=> Tutorial.seen.has('undo') },
+        { label:'Ctrl+Y 로 다시실행', done:()=> Tutorial.seen.has('redo') }
+      ] },
+    { title:'저장 · 내보내기', highlight:['#btn-save','#btn-export-png'],
+      body:kbdTag('Ctrl')+'+'+kbdTag('S')+': 작업을 JSON 파일로 저장 (상단 <b>열기</b>로 다시 불러와요). <b>PNG / PDF 내보내기</b>는 보고서용 완성 도면(표제란·범례 포함)을 만들어 줍니다. 오른쪽 <b>도면 정보</b>를 채우면 표제란에 들어가요.'+
+        '<span class="tut-tip">연습이라 파일이 내려받아져요. 나중에 지우셔도 됩니다.</span>',
+      tasks:[
+        { label:'저장 해보기 (Ctrl+S)', done:()=> Tutorial.seen.has('save') },
+        { label:'PNG 내보내기 눌러 보기', done:()=> Tutorial.seen.has('png') }
+      ] },
+    { end:true, title:'수고하셨습니다! 🎉',
+      body:'기본 조작을 모두 익혔어요. 단축키는 언제든 '+kbdTag('?')+' 키나 상단 <b>⌨ 단축키</b> 버튼에서 다시 볼 수 있고, 이 튜토리얼도 <b>🎓 튜토리얼</b> 버튼으로 다시 할 수 있습니다.<br>연습한 도면은 어떻게 할까요?' }
+  ],
+
+  _furniture(){ return AppState.symbols.filter(s=>/^(furn_|appl_|bath_)/.test(s.defId)); },
+  _hasContent(){
+    const m = AppState.meta;
+    return AppState.walls.length+AppState.symbols.length+AppState.wires.length+AppState.arrows.length+AppState.roads.length+AppState.machines.length>0
+      || !!AppState.backgroundImage
+      || !!(m.title||m.caseNumber||m.address||m.investigator||m.date||m.note);
+  },
+  _blankDoc(){
+    ToolManager.setTool('select');
+    AppState.reset(); History.reset(); Renderer.centerView();
+    UI.syncMetaFields(); UI.renderBackgroundPanel(); UI.renderPropertyPanel(); UI.updateZoomLabel(); Renderer.render();
+  },
+  _restoreDoc(){
+    const p = this.prevDoc; if(!p) return;
+    ToolManager.setTool('select');
+    AppState.loadFrom(JSON.parse(p.json)); History.reset();
+    UI.syncMetaFields(); UI.renderBackgroundPanel();
+    AppState.view.zoom = p.view.zoom; AppState.view.panX = p.view.panX; AppState.view.panY = p.view.panY;
+    if(p.unsaved) History.savedIndex = -1; // 튜토리얼 전에 저장 안 된 상태였다면 그 표시도 그대로 되돌림
+    AppState.bgDirty = !!p.bgDirty;
+    UI.updateSaveIndicator(); UI.updateZoomLabel(); UI.renderPropertyPanel(); Renderer.render();
+  },
+
+  // ---- 시작 / 종료 ----
+  start(){
+    if(this.active) return;
+    const has = this._hasContent();
+    if(has){
+      const unsaved = AppState.isUnsaved();
+      const ok = confirm('튜토리얼은 새 빈 도면에서 진행됩니다.\n지금 작업 중인 도면은 튜토리얼이 끝난 뒤 "이전 도면 복원"으로 되돌릴 수 있습니다. (단, 브라우저를 닫거나 새로고침하면 사라지니 중요한 작업은 먼저 저장해 두세요.)'+(unsaved?'\n\n※ 저장하지 않은 변경사항이 있습니다.':'')+'\n\n계속할까요?');
+      if(!ok) return;
+    }
+    this.prevDoc = has ? { json:JSON.stringify(AppState.serialize()), view:{...AppState.view}, unsaved:AppState.isUnsaved(), bgDirty:AppState.bgDirty } : null;
+    Help.close();
+    this._markOffered();
+    document.getElementById('tut-toast').style.display = 'none';
+    this._blankDoc();
+    this.active = true;
+    this._attach();
+    document.getElementById('tut-card').style.display = 'block';
+    this.go(0);
+    this.timer = setInterval(()=> this.tick(), 250);
+  },
+  end(mode){ // mode: 'blank' | 'restore' | 'keep'
+    this._clearHighlight();
+    clearInterval(this.timer); this.timer = null;
+    this._detach();
+    this.active = false; this.advancing = false;
+    document.getElementById('tut-card').style.display = 'none';
+    document.getElementById('tut-card').classList.remove('tut-done');
+    if(mode==='restore') this._restoreDoc();
+    else if(mode==='blank') this._blankDoc();
+    else { ToolManager.setTool('select'); }
+    this.prevDoc = null;
+  },
+
+  // ---- 카드 그리기 / 단계 이동 ----
+  go(i){
+    if(i<0) i=0;
+    if(i>=this.steps.length){ this.go(this.steps.length-1); return; }
+    this.idx = i;
+    const st = this.steps[i];
+    if(st.tasks) st.tasks.forEach(t=>{ t._d=false; });
+    this.seen = new Set(); this._sig = ''; this.advancing = false;
+    const card = document.getElementById('tut-card'); card.classList.remove('tut-done');
+    document.getElementById('tut-count').textContent = (i+1)+' / '+this.steps.length;
+    document.getElementById('tut-title').textContent = st.title;
+    document.getElementById('tut-body').innerHTML = st.body;
+    document.getElementById('tut-bar-fill').style.width = ((i)/(this.steps.length-1)*100)+'%';
+    if(st.enter) st.enter();
+    this._setHighlight(st.highlight);
+    this._renderTasks(st);
+    this._renderFoot(st);
+    if(st.end) try{ localStorage.setItem('fireScene2D.tutorialDone','1'); }catch(e){}
+  },
+  _renderTasks(st){
+    const ul = document.getElementById('tut-tasks');
+    if(!st.tasks){ ul.innerHTML=''; ul.style.display='none'; return; }
+    ul.style.display='block';
+    ul.innerHTML = st.tasks.map(t=>'<li class="'+(t._d?'done':'')+'"><span class="ck">'+(t._d?'✅':'⬜')+'</span>'+escapeHtml(t.label)+'</li>').join('');
+  },
+  _renderFoot(st){
+    const foot = document.getElementById('tut-foot');
+    foot.innerHTML = '';
+    const add = (label, cls, fn)=>{
+      const b = document.createElement('button'); b.textContent = label; if(cls) b.className = cls;
+      b.addEventListener('click', ()=>{ b.blur(); fn(); }); foot.appendChild(b);
+    };
+    if(st.end){
+      add('⌨ 단축키 표 열기','',()=> Help.open());
+      if(this.prevDoc) add('이전 도면 복원','',()=> this.end('restore'));
+      add('연습 도면 이어서 편집','',()=> this.end('keep'));
+      add('빈 도면으로 새로 시작','primary',()=> this.end('blank'));
+      return;
+    }
+    if(this.idx>0) add('‹ 이전','',()=> this.go(this.idx-1));
+    if(st.manual) add('다음 ›','primary',()=> this.go(this.idx+1));
+    else add('건너뛰기 ›','',()=> this.go(this.idx+1));
+  },
+  showExit(){ // ✕ 를 눌렀을 때
+    const foot = document.getElementById('tut-foot');
+    document.getElementById('tut-title').textContent = '튜토리얼을 마칠까요?';
+    document.getElementById('tut-body').innerHTML = '연습 도면은 어떻게 할까요?';
+    document.getElementById('tut-tasks').style.display = 'none';
+    this._clearHighlight();
+    foot.innerHTML = '';
+    const add = (label, cls, fn)=>{
+      const b = document.createElement('button'); b.textContent = label; if(cls) b.className = cls;
+      b.addEventListener('click', ()=>{ b.blur(); fn(); }); foot.appendChild(b);
+    };
+    add('‹ 계속하기','',()=> this.go(this.idx));
+    if(this.prevDoc) add('이전 도면 복원','',()=> this.end('restore'));
+    add('연습 도면 그대로 두기','',()=> this.end('keep'));
+    add('빈 도면으로 새로 시작','primary',()=> this.end('blank'));
+  },
+
+  // ---- 강조 표시 ----
+  _setHighlight(selectors){
+    this._clearHighlight();
+    if(!selectors) return;
+    let first = null;
+    selectors.forEach(sel=>{
+      document.querySelectorAll(sel).forEach(el=>{
+        let p = el.parentElement;
+        while(p){ if(p.tagName==='DETAILS') p.open = true; p = p.parentElement; }
+        el.classList.add('tut-highlight');
+        if(!first) first = el;
+      });
+    });
+    if(first && first.scrollIntoView) first.scrollIntoView({block:'nearest'});
+  },
+  _clearHighlight(){ document.querySelectorAll('.tut-highlight').forEach(el=>el.classList.remove('tut-highlight')); },
+
+  // ---- 진행 감지 (실제 상태를 250ms마다 확인) ----
+  tick(){
+    if(!this.active || this.advancing) return;
+    const st = this.steps[this.idx];
+    if(!st || !st.tasks) return;
+    let allDone = true;
+    st.tasks.forEach(t=>{
+      if(!t._d){ try{ if(t.done()) t._d = true; }catch(e){} }
+      if(!t.optional && !t._d) allDone = false;
+    });
+    const sig = st.tasks.map(t=>t._d?1:0).join('');
+    if(sig !== this._sig){ this._sig = sig; this._renderTasks(st); }
+    if(allDone){
+      this.advancing = true;
+      document.getElementById('tut-card').classList.add('tut-done');
+      setTimeout(()=>{ if(this.active) this.go(this.idx+1); }, 1100);
+    }
+  },
+  // 키보드/버튼 사용 여부는 상태에 흔적이 남지 않으므로 별도로 기록
+  _attach(){
+    this._onKey = e=>{
+      const k = e.key.toLowerCase();
+      if(e.ctrlKey && k==='z' && !e.shiftKey) this.seen.add('undo');
+      if(e.ctrlKey && (k==='y' || (k==='z' && e.shiftKey))) this.seen.add('redo');
+      if(e.ctrlKey && k==='s') this.seen.add('save');
+      if(/^arrow/.test(k) && AppState.selected && AppState.selected.type==='symbol') this.seen.add('nudge');
+    };
+    this._onClick = e=>{
+      const b = e.target.closest && e.target.closest('button'); if(!b) return;
+      const map = { 'btn-undo':'undo', 'btn-redo':'redo', 'btn-save':'save', 'btn-export-png':'png', 'btn-export-pdf':'pdf' };
+      if(map[b.id]) this.seen.add(map[b.id]);
+    };
+    window.addEventListener('keydown', this._onKey, true);
+    window.addEventListener('click', this._onClick, true);
+  },
+  _detach(){
+    if(this._onKey) window.removeEventListener('keydown', this._onKey, true);
+    if(this._onClick) window.removeEventListener('click', this._onClick, true);
+    this._onKey = this._onClick = null;
+  },
+
+  // ---- 첫 실행 권유 (강요하지 않는 작은 안내) ----
+  _markOffered(){ try{ localStorage.setItem('fireScene2D.tutorialOffered','1'); }catch(e){} },
+  maybeOffer(){
+    let offered = null;
+    try{ offered = localStorage.getItem('fireScene2D.tutorialOffered'); }catch(e){}
+    if(!offered) document.getElementById('tut-toast').style.display = 'block';
+  },
+  init(){
+    document.getElementById('btn-tutorial').addEventListener('click', e=>{ e.currentTarget.blur(); this.active ? this.showExit() : this.start(); });
+    document.getElementById('tut-close').addEventListener('click', ()=> this.showExit());
+    document.getElementById('tut-toast-start').addEventListener('click', ()=> this.start());
+    document.getElementById('tut-toast-later').addEventListener('click', ()=>{
+      this._markOffered(); document.getElementById('tut-toast').style.display = 'none';
+    });
+    this.maybeOffer();
+  }
+};
+
+/* =====================================================================
    18. UI
    ===================================================================== */
 const UI = {
@@ -3480,6 +3916,8 @@ const UI = {
     ToolManager.setTool('select');
     Renderer.render();
     PatchNotes.init();
+    Help.init();
+    Tutorial.init();
   },
 
   buildSymItem(def){
