@@ -115,9 +115,9 @@
   .variant-menu-item canvas{ pointer-events:none; }
   .variant-menu-item span{ font-size:10.5px; color:var(--text); white-space:nowrap; }
 
-  .variant-switch-row{ display:flex; gap:4px; }
+  .variant-switch-row{ display:flex; gap:4px; flex-wrap:wrap; }
   .variant-switch-btn{
-    flex:1; padding:5px 4px; font-size:11px; border:1px solid var(--border); border-radius:5px;
+    flex:1 1 auto; padding:5px 6px; font-size:11px; border:1px solid var(--border); border-radius:5px;
     background:var(--subtle-bg); color:var(--text);
   }
   .variant-switch-btn:hover{ border-color:var(--accent); }
@@ -321,6 +321,7 @@
     </div>
     <div class="panel-section">
       <h3>가구</h3>
+      <div class="ext-hint" style="margin-bottom:6px;">점(●) 표시된 항목(예: 테이블)은 꾹 누르면 세부 종류를 선택할 수 있습니다.</div>
       <div id="palette-furn"></div>
     </div>
     <div class="panel-section">
@@ -434,7 +435,7 @@
 /* =====================================================================
    1. CONFIG
    ===================================================================== */
-const APP_VERSION = '1.3';
+const APP_VERSION = '1.31';
 
 const CONFIG = {
   PX_PER_M: 60,
@@ -919,6 +920,12 @@ const SymbolLibrary = (function(){
     {type:'line', x1:0,y1:0.16,x2:0,y2:0.26, stroke:'#334155', lw:1.6},
     {type:'rect', x:-0.12,y:0.26,w:0.24,h:0.04, r:0.01, stroke:'#334155', fill:'#94a3b8', lw:1}
   ], AP);
+  // TV 세부 종류: 기본 'appl_tv'=거치형(스탠드), 벽걸이는 얇은 패널 + 벽 쪽 거치대. 팔레트에는 숨김.
+  regShape('appl_tv_wall','TV(벽걸이)','전기/가전',34,[
+    {type:'rect', x:-0.34,y:-0.06,w:0.68,h:0.08, r:0.015, stroke:'#334155', fill:'#1e293b', lw:1.8},
+    {type:'line', x1:-0.22,y1:-0.10,x2:0.22,y2:-0.10, stroke:'#94a3b8', lw:2},
+    {type:'line', x1:0,y1:-0.10,x2:0,y2:-0.06, stroke:'#94a3b8', lw:1.4}
+  ], {subcategory:'가전제품', color:'#334155', hidden:true});
   regShape('appl_aircon','에어컨','전기/가전',34,[
     {type:'rect', x:-0.36,y:-0.12,w:0.72,h:0.22, r:0.06, stroke:'#334155', fill:'#f1f5f9', lw:1.8},
     {type:'line', x1:-0.28,y1:0.02,x2:0.28,y2:0.02, stroke:'#94a3b8', lw:1.2},
@@ -992,9 +999,21 @@ const SymbolLibrary = (function(){
     {type:'rect', x:-0.32,y:-0.16,w:0.64,h:0.32, stroke:'#334155', fill:'#e2e8f0', lw:1.8},
     {type:'rect', x:0.06,y:-0.10,w:0.20,h:0.20, stroke:'#334155', fill:'#cbd5e1', lw:1.2}
   ], FN);
+  // 테이블류(책상/탁자/티테이블/식탁)는 팔레트에 "테이블" 하나로 묶어 보이고(대표: furn_desk),
+  // 꾹 누르기·속성 패널 "세부 종류"로 고른다. 옛 저장 파일 호환을 위해 furn_table(식탁)
+  // id는 그대로 두고 팔레트에서만 숨김. SYMBOL_VARIANT_GROUPS 참고.
+  const FN_HIDDEN = Object.assign({}, FN, {hidden:true});
   regShape('furn_table','식탁','가구',34,[
     {type:'circle', cx:0,cy:0,r:0.28, stroke:'#334155', fill:'#e2e8f0', lw:1.8}
-  ], FN);
+  ], FN_HIDDEN);
+  regShape('furn_table_plain','탁자','가구',34,[
+    {type:'rect', x:-0.30,y:-0.18,w:0.60,h:0.36, r:0.02, stroke:'#334155', fill:'#e2e8f0', lw:1.8},
+    {type:'rect', x:-0.25,y:-0.13,w:0.50,h:0.26, stroke:'#94a3b8', lw:1.1}
+  ], FN_HIDDEN);
+  regShape('furn_teatable','티테이블','가구',34,[
+    {type:'rect', x:-0.22,y:-0.14,w:0.44,h:0.28, r:0.12, stroke:'#334155', fill:'#e2e8f0', lw:1.8},
+    {type:'rect', x:-0.15,y:-0.07,w:0.30,h:0.14, r:0.07, stroke:'#94a3b8', lw:1.1}
+  ], FN_HIDDEN);
   regShape('furn_chair','의자','가구',34,[
     {type:'rect', x:-0.14,y:-0.14,w:0.28,h:0.28, r:0.03, stroke:'#334155', fill:'#e2e8f0', lw:1.8},
     {type:'line', x1:-0.14,y1:-0.14,x2:0.14,y2:-0.14, stroke:'#334155', lw:2.4}
@@ -1048,8 +1067,20 @@ const SYMBOL_VARIANT_GROUPS = {
     {defId:'appl_aircon', label:'벽걸이'},
     {defId:'appl_aircon_ceiling', label:'천장형'},
     {defId:'appl_aircon_stand', label:'스탠드'}
+  ],
+  appl_tv: [
+    {defId:'appl_tv', label:'거치형'},
+    {defId:'appl_tv_wall', label:'벽걸이'}
+  ],
+  furn_desk: [
+    {defId:'furn_desk', label:'책상'},
+    {defId:'furn_table_plain', label:'탁자'},
+    {defId:'furn_teatable', label:'티테이블'},
+    {defId:'furn_table', label:'식탁'}
   ]
 };
+// 묶음의 대표 심볼 이름과 팔레트에 보이는 이름이 다른 경우(예: 대표는 '책상'이지만 묶음 이름은 '테이블')
+const SYMBOL_GROUP_TITLES = { furn_desk:'테이블' };
 function findSymbolVariantGroup(defId){
   for(const key in SYMBOL_VARIANT_GROUPS){
     const g = SYMBOL_VARIANT_GROUPS[key];
@@ -1397,7 +1428,7 @@ const Renderer = {
     AppState.view.panX = this.cssW/2;
     AppState.view.panY = this.cssH/2;
   },
-  // 배경 이미지의 회전을 반영한 네 꼭짓점(월드 좌표)을 반환 — 화면맞춤/내보내기 범위 계산용
+  // 배경 이미지의 회전을 반영한 네 꼭짓점(월드 좌표)을 반환 — 화면맞춤 범위 계산용
   backgroundCorners(){
     const bg = AppState.backgroundImage; if(!bg) return [];
     const hw = bg.naturalWidth*bg.scale/2, hh = bg.naturalHeight*bg.scale/2;
@@ -1984,7 +2015,6 @@ const Renderer = {
     AppState.arrows.forEach(a=>{ pts.push({x:a.x1,y:a.y1},{x:a.x2,y:a.y2}); });
     AppState.roads.forEach(r=> r.points.forEach(p=>pts.push(p)));
     AppState.machines.forEach(m=>{ pts.push({x:m.x1,y:m.y1},{x:m.x2,y:m.y2}); });
-    this.backgroundCorners().forEach(p=>pts.push(p));
     if(pts.length===0) return {minX:-300,minY:-300,maxX:300,maxY:300};
     let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
     pts.forEach(p=>{ minX=Math.min(minX,p.x); minY=Math.min(minY,p.y); maxX=Math.max(maxX,p.x); maxY=Math.max(maxY,p.y); });
@@ -2038,21 +2068,8 @@ const Renderer = {
     const panX = -b.minX*zoom, panY = -b.minY*zoom;
     const w2s = (pt)=>({x:pt.x*zoom+panX, y:pt.y*zoom+panY});
 
-    // background image (표시 설정 체크박스를 존중 — 꺼져 있으면 내보내기에도 포함하지 않음)
-    if(AppState.backgroundImage && document.getElementById('chk-show-bg').checked){
-      const bg = AppState.backgroundImage;
-      const cached = this._bgImgCache;
-      if(cached.dataUrl===bg.dataUrl && cached.img && cached.img.complete && cached.img.naturalWidth){
-        const sp = w2s({x:bg.x, y:bg.y});
-        ctx.save();
-        ctx.translate(sp.x, sp.y);
-        ctx.rotate((bg.rotation||0)*Math.PI/180);
-        ctx.globalAlpha = bg.opacity!=null ? bg.opacity : 0.6;
-        const bw = bg.naturalWidth*bg.scale*zoom, bh = bg.naturalHeight*bg.scale*zoom;
-        ctx.drawImage(cached.img, -bw/2, -bh/2, bw, bh);
-        ctx.restore();
-      }
-    }
+    // 배경 이미지는 따라 그리기 위한 참고용 레퍼런스라 내보내기(PNG/PDF) 결과물에는
+    // 넣지 않는다 (화면에서만 보임). 내보내기 범위(computeBounds)에도 포함하지 않음.
 
     // grid (light)
     const step = Geo.gridStepPx()*zoom;
@@ -3367,6 +3384,11 @@ const PatchNotes = {
       'PNG/PDF 내보내기 범례에서 아이콘과 글자가 겹쳐 보이던 버그 수정(텍스트 정렬 설정이 이전 값에서 되돌아오지 않던 것이 원인). 배치된 심볼은 도면에 이미 이름표가 붙어있으므로 범례에는 화살표·배선·도로처럼 별도 표시가 필요한 항목만 남기도록 정리',
       '화살표(연소확대방향/촬영방향)의 길이·각도를 속성 패널에서 정확한 숫자로 직접 입력할 수 있도록 개선 (기존엔 각도가 드래그로만 조절되는 고정값처럼 보였음)',
       '심볼(가구 등)을 선택하면 캔버스에 나타나는 상하좌우 가장자리 핸들을 드래그해 가로/세로를 따로 늘이거나 줄일 수 있음 — 예: 좌우 핸들을 당기면 가로로만 늘어나고 세로는 그대로 유지됨. 속성 패널에도 가로/세로 배율을 각각 정확히 입력하는 칸을 추가했고, 기존 "크기" 조절은 가로/세로를 다시 같은 비율로 맞추는 용도로 유지됨'
+    ]},
+    { version:'1.31', date:'2026-09-25', items:[
+      '"가구" 프리셋에 "테이블" 묶음 추가 — 꾹 누르면 책상·탁자·티테이블·식탁 중에서 고를 수 있고, 배치 후에도 속성 패널에서 종류를 바꿀 수 있음 (기존 식탁 심볼은 그대로 호환)',
+      'TV에 거치형/벽걸이 세부 종류 추가 (꾹 누르기 또는 속성 패널에서 선택)',
+      'PNG/PDF 내보내기에 배경 이미지가 더 이상 포함되지 않음 — 배경 이미지는 따라 그리기 위한 참고용이라 완성 도면에는 나오지 않도록 변경 (화면에서는 그대로 보임)'
     ]}
   ],
 
@@ -3465,7 +3487,7 @@ const UI = {
     item.className='sym-item'; item.dataset.defid = def.id; item.draggable = true;
     const c = document.createElement('canvas'); c.width=40; c.height=40;
     const cctx = c.getContext('2d'); cctx.translate(20,20); def.draw(cctx, 28);
-    const label = document.createElement('span'); label.textContent = def.name;
+    const label = document.createElement('span'); label.textContent = SYMBOL_GROUP_TITLES[def.id] || def.name;
     item.appendChild(c); item.appendChild(label);
     const group = SYMBOL_VARIANT_GROUPS[def.id];
     if(group){
@@ -3700,7 +3722,7 @@ const UI = {
     const bg = AppState.backgroundImage;
     if(!bg){
       el.innerHTML =
-        '<div class="ext-hint">청사진·스캔본·항공사진 등을 불러와 배경에 놓고 따라 그릴 수 있습니다.</div>'+
+        '<div class="ext-hint">청사진·스캔본·항공사진 등을 불러와 배경에 놓고 따라 그릴 수 있습니다. 참고용이라 PNG/PDF 내보내기에는 포함되지 않습니다.</div>'+
         '<button class="tpl-btn" id="bg-load-btn">이미지 불러오기</button>';
       document.getElementById('bg-load-btn').addEventListener('click', ()=> document.getElementById('bg-file-input').click());
       return;
