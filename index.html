@@ -529,7 +529,7 @@
 /* =====================================================================
    1. CONFIG
    ===================================================================== */
-const APP_VERSION = '1.4';
+const APP_VERSION = '1.41';
 
 const CONFIG = {
   PX_PER_M: 60,
@@ -1763,11 +1763,13 @@ const Renderer = {
     });
   },
 
-  _strokeArrow(ctx,p1,p2,color,dashed,headLen){
-    headLen = headLen || 14;
+  // s: 선 굵기·화살촉 크기 배율 (내보내기에서 큰 도면일수록 키움, 화면에서는 생략 = 1)
+  _strokeArrow(ctx,p1,p2,color,dashed,headLen,s){
+    s = s || 1;
+    headLen = (headLen || 14)*s;
     ctx.save();
-    ctx.strokeStyle=color; ctx.fillStyle=color; ctx.lineWidth=3;
-    if(dashed) ctx.setLineDash([8,5]);
+    ctx.strokeStyle=color; ctx.fillStyle=color; ctx.lineWidth=3*s;
+    if(dashed) ctx.setLineDash([8*s,5*s]);
     const ang = Math.atan2(p2.y-p1.y,p2.x-p1.x);
     const backX = p2.x - Math.cos(ang)*headLen*0.8, backY = p2.y - Math.sin(ang)*headLen*0.8;
     ctx.beginPath(); ctx.moveTo(p1.x,p1.y); ctx.lineTo(backX,backY); ctx.stroke();
@@ -1783,27 +1785,28 @@ const Renderer = {
   // 촬영방향은 배선(파선)과 시각적으로 헷갈린다는 피드백을 반영해 화살표 대신
   // 카메라 시야각을 나타내는 "시야 콘"으로 표현함 (옛 게임의 시야 표시처럼, 기준선
   // 자체는 그리지 않고 그 기준선을 중심으로 좌우 약 35도씩 벌어진 두 변만 그림).
-  _strokeVisionCone(ctx,p1,p2,color,label,spreadDeg){
+  _strokeVisionCone(ctx,p1,p2,color,label,spreadDeg,s){
+    s = s || 1;
     const {e1,e2} = Geo.visionConeEdges(p1,p2,(spreadDeg!=null?spreadDeg:70)/2);
     const baseAlpha = ctx.globalAlpha;
     ctx.save();
     ctx.fillStyle = color; ctx.globalAlpha = baseAlpha*0.16;
     ctx.beginPath(); ctx.moveTo(p1.x,p1.y); ctx.lineTo(e1.x,e1.y); ctx.lineTo(e2.x,e2.y); ctx.closePath(); ctx.fill();
     ctx.globalAlpha = baseAlpha;
-    ctx.strokeStyle = color; ctx.lineWidth = 2.2;
+    ctx.strokeStyle = color; ctx.lineWidth = 2.2*s;
     ctx.beginPath(); ctx.moveTo(p1.x,p1.y); ctx.lineTo(e1.x,e1.y); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(p1.x,p1.y); ctx.lineTo(e2.x,e2.y); ctx.stroke();
     ctx.fillStyle = color;
-    ctx.beginPath(); ctx.arc(p1.x,p1.y,4,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(p1.x,p1.y,4*s,0,Math.PI*2); ctx.fill();
     if(label){
       // 부채꼴 안쪽(촬영 위치→방향의 55% 지점, 즉 이등분선 위)에 번호 라벨 표시
       const lx = p1.x+(p2.x-p1.x)*0.55, ly = p1.y+(p2.y-p1.y)*0.55;
-      ctx.font = 'bold 11px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.font = 'bold '+(11*s)+'px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
       const tw = ctx.measureText(label).width;
       ctx.globalAlpha = baseAlpha;
       ctx.fillStyle = 'rgba(255,255,255,0.92)';
-      ctx.fillRect(lx-tw/2-4, ly-9, tw+8, 18);
-      ctx.strokeStyle = color; ctx.lineWidth=1; ctx.strokeRect(lx-tw/2-4, ly-9, tw+8, 18);
+      ctx.fillRect(lx-tw/2-4*s, ly-9*s, tw+8*s, 18*s);
+      ctx.strokeStyle = color; ctx.lineWidth=1*s; ctx.strokeRect(lx-tw/2-4*s, ly-9*s, tw+8*s, 18*s);
       ctx.fillStyle = color;
       ctx.fillText(label, lx, ly);
     }
@@ -2122,11 +2125,19 @@ const Renderer = {
     const scaleUp = 2;
     const contentW = (b.maxX-b.minX)*scaleUp, contentH = (b.maxY-b.minY)*scaleUp;
 
+    // 주석 배율 k — 큰 현장(예: 20m×40m)은 내보낸 이미지가 수천 px로 커지는데 글자·범례·
+    // 나침반·축척바가 고정 px라, 문서에 줄여 넣으면 깨알처럼 보였음. 이미지의 긴 변이
+    // 1600px(대략 가로 13m 남짓)을 넘으면 그 비율만큼 주석 요소를 키운다. 작은 도면은 k=1로
+    // 기존과 똑같이 나옴. 도면 자체(벽·심볼 크기)는 실제 축척이므로 k와 무관.
+    const k = Math.max(1, Math.max(contentW, contentH) / 1600);
+    const f = px => Math.round(px*k)+'px sans-serif';
+
     // 심볼(가구/가전 등)은 도면 위에 아이콘과 함께 이름이 항상 같이 표시되므로
     // 범례에 다시 나열하지 않음 — 화살표/배선/도로처럼 도면에 이름표가 붙지 않는
     // 항목만 범례에 싣는다. (과거에는 배치된 모든 심볼 종류를 범례에 아이콘+이름으로
     // 나열했는데, 심볼마다 실제 크기가 제각각(예: 자동차)이라 옆의 캡션 글자와
     // 겹쳐 보이는 문제가 있었음 — 이 목록 자체를 없애 근본적으로 해결)
+    // 범례 아이콘은 k=1 기준 좌표(-14~14)로 그리고, 그릴 때 ctx.scale(k)로 통째로 키운다.
     const usedArrowKinds = new Set(AppState.arrows.map(a=>a.kind));
     const hasWires = AppState.wires.length>0;
     const hasRoads = AppState.roads.some(r=>r.kind!=='unpaved');
@@ -2150,8 +2161,9 @@ const Renderer = {
       ctx.beginPath(); ctx.moveTo(-14,0); ctx.lineTo(14,0); ctx.stroke();
     } });
 
-    const legendH = Math.max(130, 44 + Math.ceil(legendEntries.length/2)*24 + 14);
-    const cw = Math.max(600, contentW), ch = Math.max(400, contentH)+legendH;
+    const legendH = Math.max(130, 44 + Math.ceil(legendEntries.length/2)*24 + 14) * k;
+    // 최소 캔버스 크기도 k배 — 좁고 긴 도면에서도 표제란·범례가 같은 비율로 들어가도록
+    const cw = Math.max(600*k, contentW), ch = Math.max(400*k, contentH)+legendH;
 
     const off = document.createElement('canvas');
     off.width = cw; off.height = ch;
@@ -2203,30 +2215,30 @@ const Renderer = {
       if(r.label && r.points.length){
         const mid = r.points[Math.floor(r.points.length/2)];
         const sp = w2s(mid);
-        ctx.save(); ctx.font='16px sans-serif'; ctx.textAlign='center';
+        ctx.save(); ctx.font=f(16); ctx.textAlign='center';
         const tw=ctx.measureText(r.label).width;
-        ctx.fillStyle='rgba(255,255,255,0.85)'; ctx.fillRect(sp.x-tw/2-4,sp.y-widthPx/2-26,tw+8,20);
-        ctx.fillStyle=P.labelText; ctx.fillText(r.label, sp.x, sp.y-widthPx/2-12);
+        ctx.fillStyle='rgba(255,255,255,0.85)'; ctx.fillRect(sp.x-tw/2-4*k,sp.y-widthPx/2-26*k,tw+8*k,20*k);
+        ctx.fillStyle=P.labelText; ctx.fillText(r.label, sp.x, sp.y-widthPx/2-12*k);
         ctx.restore();
       }
     });
 
     // wires
     AppState.wires.forEach(w=>{
-      ctx.save(); ctx.strokeStyle=P.wire; ctx.lineWidth=3.5; ctx.setLineDash([12,8]);
+      ctx.save(); ctx.strokeStyle=P.wire; ctx.lineWidth=3.5*k; ctx.setLineDash([12*k,8*k]);
       ctx.beginPath();
       w.points.forEach((p,i)=>{ const sp=w2s(p); if(i===0) ctx.moveTo(sp.x,sp.y); else ctx.lineTo(sp.x,sp.y); });
       ctx.stroke(); ctx.setLineDash([]);
       ctx.fillStyle=P.wire;
-      w.points.forEach(p=>{ const sp=w2s(p); ctx.beginPath(); ctx.arc(sp.x,sp.y,4,0,Math.PI*2); ctx.fill(); });
+      w.points.forEach(p=>{ const sp=w2s(p); ctx.beginPath(); ctx.arc(sp.x,sp.y,4*k,0,Math.PI*2); ctx.fill(); });
       ctx.restore();
       if(w.label && w.points.length){
         const mid = w.points[Math.floor(w.points.length/2)];
         const sp = w2s(mid);
-        ctx.save(); ctx.font='16px sans-serif'; ctx.textAlign='center';
+        ctx.save(); ctx.font=f(16); ctx.textAlign='center';
         const tw=ctx.measureText(w.label).width;
-        ctx.fillStyle='rgba(255,255,255,0.85)'; ctx.fillRect(sp.x-tw/2-4,sp.y-30,tw+8,20);
-        ctx.fillStyle=P.labelText; ctx.fillText(w.label, sp.x, sp.y-16);
+        ctx.fillStyle='rgba(255,255,255,0.85)'; ctx.fillRect(sp.x-tw/2-4*k,sp.y-30*k,tw+8*k,20*k);
+        ctx.fillStyle=P.labelText; ctx.fillText(w.label, sp.x, sp.y-16*k);
         ctx.restore();
       }
     });
@@ -2252,11 +2264,11 @@ const Renderer = {
         const lenM = w.curve.r * Geo.arcSweep(w.curve) / CONFIG.PX_PER_M;
         const mid = w2s(Geo.arcMidpoint(w.curve));
         ctx.save();
-        ctx.font='20px sans-serif'; ctx.textAlign='center';
+        ctx.font=f(20); ctx.textAlign='center';
         const label = lenM.toFixed(2)+'m (호)';
         const tw = ctx.measureText(label).width;
-        ctx.fillStyle='rgba(255,255,255,0.85)'; ctx.fillRect(mid.x-tw/2-4,mid.y-thickPx/2-32,tw+8,24);
-        ctx.fillStyle=P.dim; ctx.fillText(label,mid.x,mid.y-thickPx/2-14);
+        ctx.fillStyle='rgba(255,255,255,0.85)'; ctx.fillRect(mid.x-tw/2-4*k,mid.y-thickPx/2-32*k,tw+8*k,24*k);
+        ctx.fillStyle=P.dim; ctx.fillText(label,mid.x,mid.y-thickPx/2-14*k);
         ctx.restore();
       } else {
         const p1=w2s({x:w.x1,y:w.y1}), p2=w2s({x:w.x2,y:w.y2});
@@ -2266,11 +2278,11 @@ const Renderer = {
         ctx.save(); ctx.translate(mid.x,mid.y);
         let rot=ang; if(rot>Math.PI/2||rot<-Math.PI/2) rot+=Math.PI;
         ctx.rotate(rot);
-        ctx.font='20px sans-serif'; ctx.textAlign='center';
+        ctx.font=f(20); ctx.textAlign='center';
         const label = lenM.toFixed(2)+'m';
         const tw = ctx.measureText(label).width;
-        ctx.fillStyle='rgba(255,255,255,0.85)'; ctx.fillRect(-tw/2-4,-thickPx/2-28,tw+8,24);
-        ctx.fillStyle=P.dim; ctx.fillText(label,0,-thickPx/2-10);
+        ctx.fillStyle='rgba(255,255,255,0.85)'; ctx.fillRect(-tw/2-4*k,-thickPx/2-28*k,tw+8*k,24*k);
+        ctx.fillStyle=P.dim; ctx.fillText(label,0,-thickPx/2-10*k);
         ctx.restore();
       }
     });
@@ -2280,26 +2292,26 @@ const Renderer = {
       const a=w2s({x:m.x1,y:m.y1}), b=w2s({x:m.x2,y:m.y2});
       const x=Math.min(a.x,b.x), y=Math.min(a.y,b.y), w=Math.abs(b.x-a.x), h=Math.abs(b.y-a.y);
       ctx.save();
-      ctx.fillStyle='rgba(100,116,139,0.14)'; ctx.strokeStyle='#64748b'; ctx.lineWidth=2.4; ctx.setLineDash([9,6]);
+      ctx.fillStyle='rgba(100,116,139,0.14)'; ctx.strokeStyle='#64748b'; ctx.lineWidth=2.4*k; ctx.setLineDash([9*k,6*k]);
       ctx.fillRect(x,y,w,h); ctx.strokeRect(x,y,w,h);
       ctx.restore();
       if(m.label){
         ctx.save();
-        ctx.font='16px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.font=f(16); ctx.textAlign='center'; ctx.textBaseline='middle';
         const cx=x+w/2, cy=y+h/2;
         const tw=ctx.measureText(m.label).width;
-        ctx.fillStyle='rgba(255,255,255,0.85)'; ctx.fillRect(cx-tw/2-5,cy-13,tw+10,26);
+        ctx.fillStyle='rgba(255,255,255,0.85)'; ctx.fillRect(cx-tw/2-5*k,cy-13*k,tw+10*k,26*k);
         ctx.fillStyle=P.labelText; ctx.fillText(m.label, cx, cy);
         ctx.restore();
       }
     });
 
-    // arrows
+    // arrows — 촬영방향 번호 라벨은 화면용 11px가 내보내기(2배 캔버스)에서 너무 작아 1.5배 기본값
     AppState.arrows.forEach(a=>{
       const p1=w2s({x:a.x1,y:a.y1}), p2=w2s({x:a.x2,y:a.y2});
       const col = a.kind==='spread' ? P.arrowSpread : P.arrowPhoto;
-      if(a.kind==='photo') this._strokeVisionCone(ctx,p1,p2,col,a.label,a.spreadDeg);
-      else this._strokeArrow(ctx,p1,p2,col,false,20);
+      if(a.kind==='photo') this._strokeVisionCone(ctx,p1,p2,col,a.label,a.spreadDeg,1.5*k);
+      else this._strokeArrow(ctx,p1,p2,col,false,20,k);
     });
 
     // symbols
@@ -2313,25 +2325,31 @@ const Renderer = {
       def.draw(ctx, def.defaultSize, false);
       ctx.restore();
       const label = sym.label || def.name;
-      ctx.save(); ctx.font='18px sans-serif'; ctx.textAlign='center';
+      ctx.save(); ctx.font=f(18); ctx.textAlign='center';
       const tw=ctx.measureText(label).width;
-      const ly = sp.y + def.defaultSize/2*scaleY*zoom + 22;
-      ctx.fillStyle='rgba(255,255,255,0.85)'; ctx.fillRect(sp.x-tw/2-4,ly-16,tw+8,20);
+      const ly = sp.y + def.defaultSize/2*scaleY*zoom + 22*k;
+      ctx.fillStyle='rgba(255,255,255,0.85)'; ctx.fillRect(sp.x-tw/2-4*k,ly-16*k,tw+8*k,20*k);
       ctx.fillStyle='#374151'; ctx.fillText(label, sp.x, ly);
       ctx.restore();
     });
 
     // scale bar & north arrow
+    // 축척바 길이는 도면 폭의 1/4 이하에서 가장 큰 깔끔한 값(10·20·50·100m)으로, 작은 도면은 기존처럼 5m —
+    // 큰 현장에 5m 고정이면 너무 짧아 보였음
+    const contentWm = contentW/zoom/CONFIG.PX_PER_M;
+    const barMeters = [100,50,20,10].find(v=> v <= contentWm/4) || 5;
     ctx.save();
-    const barMeters=5, barPx=barMeters*CONFIG.PX_PER_M*zoom, x0=24,y0=contentH-24;
-    ctx.strokeStyle=P.scale; ctx.fillStyle=P.scale; ctx.lineWidth=2.5;
+    const barPx=barMeters*CONFIG.PX_PER_M*zoom, x0=24*k, y0=contentH-24*k;
+    ctx.strokeStyle=P.scale; ctx.fillStyle=P.scale; ctx.lineWidth=2.5*k;
     ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(x0+barPx,y0); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(x0,y0-6); ctx.lineTo(x0,y0+6); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(x0+barPx,y0-6); ctx.lineTo(x0+barPx,y0+6); ctx.stroke();
-    ctx.font='16px sans-serif'; ctx.fillText(barMeters+' m', x0, y0-12);
-    const nx=contentW-50, ny=50;
+    ctx.beginPath(); ctx.moveTo(x0,y0-6*k); ctx.lineTo(x0,y0+6*k); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x0+barPx,y0-6*k); ctx.lineTo(x0+barPx,y0+6*k); ctx.stroke();
+    ctx.font=f(16); ctx.fillText(barMeters+' m', x0, y0-12*k);
+    const nx=contentW-50*k, ny=50*k;
     ctx.translate(nx,ny);
+    ctx.scale(k,k);
     const northAngRad = (AppState.northAngleDeg||0)*Math.PI/180;
+    ctx.lineWidth=2.5;
     ctx.beginPath(); ctx.arc(0,0,22,0,Math.PI*2); ctx.stroke();
     ctx.save();
     ctx.rotate(northAngRad);
@@ -2341,43 +2359,43 @@ const Renderer = {
     ctx.fillText('N', Math.sin(northAngRad)*37, -Math.cos(northAngRad)*37+5);
     ctx.restore();
 
-    // title block + legend at bottom
+    // title block + legend at bottom — k=1 기준으로 배치한 뒤 x축만 실제 폭에 맞춰 늘림
     ctx.save();
     ctx.translate(0, contentH);
     ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,cw,legendH);
-    ctx.strokeStyle='#cbd5e1'; ctx.lineWidth=1; ctx.strokeRect(0,0,cw,legendH);
-    ctx.beginPath(); ctx.moveTo(cw*0.62,4); ctx.lineTo(cw*0.62,legendH-4); ctx.stroke();
+    ctx.strokeStyle='#cbd5e1'; ctx.lineWidth=1*k; ctx.strokeRect(0,0,cw,legendH);
+    ctx.beginPath(); ctx.moveTo(cw*0.62,4*k); ctx.lineTo(cw*0.62,legendH-4*k); ctx.stroke();
 
     ctx.fillStyle='#1f2430'; ctx.textAlign='left';
-    ctx.font='bold 18px sans-serif';
-    ctx.fillText(AppState.meta.title || '화재현장 2D 복원도', 16, 26);
-    ctx.font='13px sans-serif'; ctx.fillStyle='#4b5563';
+    ctx.font='bold '+f(18);
+    ctx.fillText(AppState.meta.title || '화재현장 2D 복원도', 16*k, 26*k);
+    ctx.font=f(13); ctx.fillStyle='#4b5563';
     const infoLines = [
       '사건번호: '+(AppState.meta.caseNumber||'-'),
       '주소: '+(AppState.meta.address||'-'),
       '작성자: '+(AppState.meta.investigator||'-')+'   작성일: '+(AppState.meta.date||'-')+'   축척: '+(AppState.meta.scaleLabel||'-')
     ];
-    infoLines.forEach((line,i)=> ctx.fillText(line, 16, 48+i*18));
+    infoLines.forEach((line,i)=> ctx.fillText(line, 16*k, (48+i*18)*k));
     if(AppState.meta.note){
-      ctx.fillText('비고: '+AppState.meta.note, 16, 48+infoLines.length*18+4);
+      ctx.fillText('비고: '+AppState.meta.note, 16*k, (48+infoLines.length*18+4)*k);
     }
-    ctx.font='10px sans-serif'; ctx.fillStyle='#9ca3af'; ctx.textAlign='right';
-    ctx.fillText('작성도구 v'+APP_VERSION, cw*0.62-8, legendH-8);
+    ctx.font=f(10); ctx.fillStyle='#9ca3af'; ctx.textAlign='right';
+    ctx.fillText('작성도구 v'+APP_VERSION, cw*0.62-8*k, legendH-8*k);
 
     // 위에서 textAlign을 'right'로 바꿔둔 채였던 것을 되돌리지 않아서 아래 범례 글자가
     // 아이콘 쪽으로 거꾸로(오른쪽 정렬) 그려져 겹쳐 보이던 버그 — 명시적으로 다시 'left'로.
     ctx.textAlign='left';
-    ctx.font='bold 13px sans-serif'; ctx.fillStyle='#1f2430';
-    ctx.fillText('범례', cw*0.62+14, 20);
-    ctx.font='12px sans-serif';
-    let lx = cw*0.62+14, ly2 = 40;
+    ctx.font='bold '+f(13); ctx.fillStyle='#1f2430';
+    ctx.fillText('범례', cw*0.62+14*k, 20*k);
+    ctx.font=f(12);
+    const lx = cw*0.62+14*k, ly2 = 40*k;
     legendEntries.forEach((entry,i)=>{
-      const colW = (cw*0.38-28)/2;
-      const cx = lx + (i%2)*colW, cy = ly2 + Math.floor(i/2)*24;
-      ctx.save(); ctx.translate(cx+12, cy);
+      const colW = (cw*0.38-28*k)/2;
+      const cx = lx + (i%2)*colW, cy = ly2 + Math.floor(i/2)*24*k;
+      ctx.save(); ctx.translate(cx+12*k, cy); ctx.scale(k,k);
       entry.draw(ctx);
       ctx.restore();
-      ctx.fillStyle='#374151'; ctx.fillText(entry.label, cx+30, cy+4);
+      ctx.fillStyle='#374151'; ctx.fillText(entry.label, cx+30*k, cy+4*k);
     });
     ctx.restore();
 
@@ -3182,9 +3200,12 @@ function onKeyDown(e){
     }
     return;
   }
+  if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='c'){ e.preventDefault(); copySelected(); return; }
+  if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='v'){ e.preventDefault(); pasteClipboard(); return; }
   if(e.ctrlKey && !e.shiftKey && e.key.toLowerCase()==='z'){ e.preventDefault(); History.undo(); return; }
   if(e.ctrlKey && (e.key.toLowerCase()==='y' || (e.shiftKey && e.key.toLowerCase()==='z'))){ e.preventDefault(); History.redo(); return; }
   if(e.ctrlKey && e.key.toLowerCase()==='s'){ e.preventDefault(); FileIO.exportJSON(); return; }
+  if(e.ctrlKey || e.metaKey || e.altKey) return; // Ctrl+조합키가 아래 도구 단축키(C=배선 등)로 새지 않게
   if(e.key==='v' || e.key==='V') ToolManager.setTool('select');
   if(e.key==='w' || e.key==='W') ToolManager.setTool('wall');
   if(e.key==='c' || e.key==='C') ToolManager.setTool('wire');
@@ -3196,6 +3217,78 @@ function onKeyDown(e){
   if(e.key==='p' || e.key==='P') ToolManager.startArrowTool('photo');
 }
 function onKeyUp(e){ if(e.code==='Space'){ ToolManager.spacePressed=false; ToolManager.updateCursor(); } }
+
+/* ---- 복사 / 붙여넣기 (Ctrl+C / Ctrl+V) ----
+   선택한 오브젝트 하나를 메모리에 복사해 두고, 붙여넣을 때마다 마우스 커서 위치를 중심으로
+   새 사본을 만든다. 붙여넣은 사본이 선택되므로 커서를 옮겨 가며 Ctrl+V를 반복해 여러 개를
+   찍을 수 있다. 자동 번호/자동 라벨(증거위치 1, 촬영방향1, 배선 경로 3, 설비 2 …)은 새 번호로. */
+const Clipboard = { item:null };
+const COPY_ARRAYS = { wall:'walls', symbol:'symbols', wire:'wires', arrow:'arrows', road:'roads', machine:'machines' };
+
+function copySelected(){
+  const sel = AppState.selected; if(!sel || !COPY_ARRAYS[sel.type]) return;
+  const obj = AppState[COPY_ARRAYS[sel.type]].find(o=>o.id===sel.id); if(!obj) return;
+  Clipboard.item = { type:sel.type, data:JSON.parse(JSON.stringify(obj)) };
+  UI.flashHint('복사했습니다 — 원하는 위치에 마우스를 두고 '+kbdTag('Ctrl')+'+'+kbdTag('V')+'로 붙여넣기');
+}
+
+// 오브젝트의 기준점(심볼=위치, 선분류=중점, 경로류=경계상자 중심)
+function objectAnchor(type, o){
+  if(type==='symbol') return {x:o.x, y:o.y};
+  if(type==='wire' || type==='road'){
+    const xs=o.points.map(p=>p.x), ys=o.points.map(p=>p.y);
+    return {x:(Math.min(...xs)+Math.max(...xs))/2, y:(Math.min(...ys)+Math.max(...ys))/2};
+  }
+  return {x:(o.x1+o.x2)/2, y:(o.y1+o.y2)/2};
+}
+function translateObject(type, o, dx, dy){
+  if(type==='symbol'){ o.x+=dx; o.y+=dy; return; }
+  if(type==='wire' || type==='road'){ o.points.forEach(p=>{ p.x+=dx; p.y+=dy; }); return; }
+  o.x1+=dx; o.y1+=dy; o.x2+=dx; o.y2+=dy;
+  if(o.curve){ o.curve.cx+=dx; o.curve.cy+=dy; }
+}
+
+function pasteClipboard(){
+  const c = Clipboard.item; if(!c) return;
+  const type = c.type, o = JSON.parse(JSON.stringify(c.data));
+  // 커서가 캔버스 위에 있으면 커서 위치로, 아니면 원본에서 살짝 비켜서 붙임
+  const r = Renderer.canvas.getBoundingClientRect();
+  const lc = UI.lastClient;
+  const onCanvas = lc && lc.x>=r.left && lc.x<=r.right && lc.y>=r.top && lc.y<=r.bottom;
+  const anchor = objectAnchor(type, o);
+  const target = onCanvas
+    ? Renderer.screenToWorld({x:lc.x-r.left, y:lc.y-r.top})
+    : {x:anchor.x+20/AppState.view.zoom, y:anchor.y+20/AppState.view.zoom};
+  translateObject(type, o, target.x-anchor.x, target.y-anchor.y);
+  o.id = AppState.genId();
+
+  if(type==='symbol'){
+    const def = SymbolLibrary.get(o.defId);
+    o.seq = AppState.nextSeq();
+    if(def && def.numbered && o.autoLabel!==false) o.label = '';
+    AppState.symbols.push(o);
+    if(def && def.numbered) renumberSymbolsOfType(o.defId);
+  } else if(type==='arrow'){
+    if(o.kind==='photo'){ o.seq = AppState.nextSeq(); if(o.autoLabel!==false) o.label=''; }
+    AppState.arrows.push(o);
+    if(o.kind==='photo') renumberArrowsOfKind('photo');
+  } else if(type==='wire'){
+    if(!o.label || /^배선 경로 \d+$/.test(o.label)){ AppState.wireCounter++; o.label = '배선 경로 '+AppState.wireCounter; }
+    AppState.wires.push(o);
+  } else if(type==='road'){
+    if(o.kind==='unpaved'){ if(!o.label || /^비포장도로 \d+$/.test(o.label)){ AppState.unpavedRoadCounter++; o.label='비포장도로 '+AppState.unpavedRoadCounter; } }
+    else if(!o.label || /^도로 \d+$/.test(o.label)){ AppState.roadCounter++; o.label='도로 '+AppState.roadCounter; }
+    AppState.roads.push(o);
+  } else if(type==='machine'){
+    if(!o.label || /^설비 \d+$/.test(o.label)){ AppState.machineCounter++; o.label='설비 '+AppState.machineCounter; }
+    AppState.machines.push(o);
+  } else if(type==='wall'){
+    AppState.walls.push(o);
+  }
+  if(ToolManager.current!=='select') ToolManager.setTool('select');
+  AppState.selected = { type, id:o.id };
+  History.commit(); UI.renderPropertyPanel(); Renderer.render();
+}
 
 function deleteSelected(){
   const sel = AppState.selected; if(!sel) return;
@@ -3493,6 +3586,11 @@ const PatchNotes = {
       '튜토리얼 시작 전 작업하던 도면은 종료할 때 "이전 도면 복원"으로 되돌릴 수 있음 (브라우저를 닫으면 사라지니 중요한 도면은 먼저 저장)',
       '"단축키 한눈에 보기" 추가 — 상단 ⌨ 단축키 버튼 또는 ? 키로 언제든 열고 닫을 수 있으며, 인쇄/PDF로 저장해 책상에 붙여 둘 수 있음',
       'Ctrl+Shift+Z가 다시실행이 아니라 실행취소로 동작하던 문제 수정'
+    ]},
+    { version:'1.41', date:'2026-10-03', items:[
+      '큰 현장(예: 20m×40m) PNG/PDF 내보내기 시 범례·표제란·나침반·축척바·라벨 글자가 너무 작게 나오던 문제 개선 — 도면 크기에 비례해 자동으로 커짐 (작은 도면은 기존과 동일). 큰 도면에서는 축척바도 10m·20m 등으로 길어짐',
+      '복사·붙여넣기 추가 — 선택한 것을 Ctrl+C로 복사하고 Ctrl+V를 누르면 마우스 커서 위치에 붙여짐. 붙여넣은 것이 바로 선택되어 커서를 옮겨 가며 Ctrl+V를 반복하면 여러 개를 연달아 놓을 수 있음 (증거위치·촬영방향 등 자동 번호는 새 번호로 매겨짐)',
+      'Ctrl+C를 누르면 배선 경로 도구(C)가 함께 켜지던 문제 방지'
     ]}
   ],
 
@@ -3579,6 +3677,8 @@ const Help = {
     ]},
     { title:'편집', rows:[
       [kbdTag('Delete'),'선택한 것 삭제'],
+      [combo('Ctrl','C'),'선택한 것 복사'],
+      [combo('Ctrl','V'),'마우스 커서 위치에 붙여넣기 (반복 가능)'],
       [combo('Ctrl','Z'),'실행취소'], [combo('Ctrl','Y'),'다시실행'], [combo('Ctrl','S'),'JSON으로 저장'],
       [kbdTag('←')+kbdTag('↑')+kbdTag('↓')+kbdTag('→'),'선택한 심볼 미세 이동 (1px)'],
       [combo('Shift','방향키'),'선택한 심볼 크게 이동 (10px)'],
@@ -3895,6 +3995,7 @@ const Tutorial = {
    ===================================================================== */
 const UI = {
   lastWorld: {x:0,y:0},
+  lastClient: null,
 
   init(){
     const versionEl = document.getElementById('app-version');
@@ -4109,6 +4210,8 @@ const UI = {
   },
 
   bindShortcutsGlobal(){
+    // 붙여넣기 위치(마우스 커서)를 알기 위해 화면 어디서든 마지막 포인터 좌표를 기억
+    window.addEventListener('pointermove', e=>{ this.lastClient = {x:e.clientX, y:e.clientY}; }, true);
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
     window.addEventListener('afterprint', ()=>{ document.getElementById('print-area').innerHTML=''; });
@@ -4218,6 +4321,14 @@ const UI = {
     if(el && document.activeElement!==el) el.value = Math.round(AppState.northAngleDeg||0);
   },
 
+  // 상단 안내 배너에 잠깐(2.5초) 메시지를 띄웠다가 원래 도구 안내로 되돌림
+  flashHint(html){
+    const hint = document.getElementById('hint');
+    hint.style.display='block'; hint.innerHTML = html;
+    hint.classList.remove('hint-pop'); void hint.offsetWidth; hint.classList.add('hint-pop');
+    clearTimeout(this._flashTimer);
+    this._flashTimer = setTimeout(()=> ToolManager.updateHint(), 2500);
+  },
   updateHud(){
     const w = this.lastWorld;
     document.getElementById('hud').textContent =
